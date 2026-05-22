@@ -92430,7 +92430,7 @@ async function run() {
 async function writeSummary(outcome) {
     const { result, fileName, sizeBytes, platform } = outcome;
     const wireSnippet = [
-        '- uses: mobileboost/actions/run-tests@v1',
+        '- uses: MobileBoostHQ/actions/run-tests@v1',
         '  with:',
         '    api-key: ${{ secrets.MOBILEBOOST_API_KEY }}',
         '    organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}',

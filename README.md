@@ -30,7 +30,7 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     steps:
-      - uses: mobileboost/actions/upload-build@v1
+      - uses: MobileBoostHQ/actions/upload-build@v1
         id: upload
         with:
           api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
@@ -38,7 +38,7 @@ jobs:
           platform: android
           build-path: app/build/outputs/apk/release/*.apk
 
-      - uses: mobileboost/actions/run-tests@v1
+      - uses: MobileBoostHQ/actions/run-tests@v1
         with:
           api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
           organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
@@ -137,7 +137,7 @@ Triggers a test run against an uploaded build and (by default) waits for it.
 **iOS, specific tests, custom timeout:**
 
 ```yaml
-- uses: mobileboost/actions/run-tests@v1
+- uses: MobileBoostHQ/actions/run-tests@v1
   with:
     api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
     organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
@@ -150,7 +150,7 @@ Triggers a test run against an uploaded build and (by default) waits for it.
 **Trigger only, don't wait:**
 
 ```yaml
-- uses: mobileboost/actions/run-tests@v1
+- uses: MobileBoostHQ/actions/run-tests@v1
   with:
     api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
     organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
@@ -162,7 +162,7 @@ Triggers a test run against an uploaded build and (by default) waits for it.
 **Don't fail the job on test failures (report only):**
 
 ```yaml
-- uses: mobileboost/actions/run-tests@v1
+- uses: MobileBoostHQ/actions/run-tests@v1
   with:
     api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
     organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
@@ -178,14 +178,14 @@ strategy:
   matrix:
     platform: [ios, android]
 steps:
-  - uses: mobileboost/actions/upload-build@v1
+  - uses: MobileBoostHQ/actions/upload-build@v1
     id: upload
     with:
       api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
       organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
       platform: ${{ matrix.platform }}
       build-path: build/${{ matrix.platform }}/*
-  - uses: mobileboost/actions/run-tests@v1
+  - uses: MobileBoostHQ/actions/run-tests@v1
     with:
       api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
       organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
@@ -203,7 +203,7 @@ steps:
 - **Custom CA (TLS-inspecting proxies, e.g. Netskope):** point
   `NODE_EXTRA_CA_CERTS` at your CA bundle. Node respects it natively.
   ```yaml
-  - uses: mobileboost/actions/upload-build@v1
+  - uses: MobileBoostHQ/actions/upload-build@v1
     env:
       NODE_EXTRA_CA_CERTS: /etc/ssl/certs/corp-ca.pem
     with: { ... }

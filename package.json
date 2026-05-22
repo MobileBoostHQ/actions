@@ -5,7 +5,7 @@
   "description": "GitHub Actions for the MobileBoost mobile test automation platform.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mobileboost/actions.git"
+    "url": "https://github.com/MobileBoostHQ/actions.git"
   },
   "license": "MIT",
   "author": "MobileBoost",
