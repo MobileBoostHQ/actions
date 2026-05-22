@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Build bundles
+        run: npm run build
+
+      - name: Verify dist/ is up to date
+        # The bundled dist/ is committed. If a PR changed src/ but forgot to
+        # rebuild, the working tree differs here — fail loudly.
+        run: |
+          if [ -n "$(git status --porcelain -- upload-build/dist run-tests/dist)" ]; then
+            echo "::error::dist/ is out of date. Run 'npm run build' and commit the result."
+            git status --porcelain -- upload-build/dist run-tests/dist
+            git diff -- upload-build/dist run-tests/dist
+            exit 1
+          fi
+          echo "dist/ is up to date."

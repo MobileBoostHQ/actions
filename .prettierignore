@@ -1,0 +1,7 @@
+node_modules/
+upload-build/dist/
+run-tests/dist/
+lib/
+coverage/
+licenses.txt
+package-lock.json

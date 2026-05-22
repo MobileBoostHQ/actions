@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Type-check / build scratch output (the COMMITTED bundles live in
+# upload-build/dist and run-tests/dist and are intentionally NOT ignored).
+# Anchored to the repo root so src/lib/ and tests/lib/ are NOT matched.
+/lib/
+/coverage/
+
+# Editor / OS
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
+
+# Env (the local-e2e harness reads .env.local; the example is committed)
+.env
+.env.*
+!.env.local.example

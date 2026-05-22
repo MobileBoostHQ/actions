@@ -1,0 +1,36 @@
+name: 'MobileBoost — Upload Build'
+description: 'Upload a mobile app build (.zip or .apk) to MobileBoost.'
+author: 'MobileBoost'
+branding:
+  icon: 'upload-cloud'
+  color: 'purple'
+inputs:
+  api-key:
+    description: 'MobileBoost API key (mb_live_…). Store as a GitHub secret.'
+    required: true
+  organisation-id:
+    description: 'Your MobileBoost organisation ID.'
+    required: true
+  platform:
+    description: 'Platform of the build: ios or android. Optional; inferred if omitted.'
+    required: false
+  build-path:
+    description: |
+      Path to the build file (.zip or .apk), a directory (will be zipped),
+      or a glob (first match used).
+    required: true
+  metadata:
+    description: 'Optional metadata as a JSON object string (the API parses it as JSON).'
+    required: false
+  api-url:
+    description: 'Override the MobileBoost API base URL.'
+    required: false
+    default: 'https://api.mobileboost.io'
+outputs:
+  build-id:
+    description: 'The buildId of the uploaded build. Pass to the run-tests action.'
+  app-link:
+    description: 'Dashboard URL for the uploaded build.'
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
