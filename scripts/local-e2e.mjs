@@ -122,7 +122,6 @@ const CONFIG_KEYS = [
   'MOBILEBOOST_API_KEY',
   'MOBILEBOOST_ORG_ID',
   'BUILD_PATH',
-  'PLATFORM',
   'METADATA',
   'TAGS',
   'TEST_IDS',
@@ -169,7 +168,6 @@ function main() {
       'api-key': apiKey,
       'organisation-id': orgId,
       'build-path': env.BUILD_PATH,
-      platform: env.PLATFORM,
       metadata: env.METADATA,
       'api-url': apiUrl,
     });
@@ -188,7 +186,6 @@ function main() {
       'api-key': apiKey,
       'organisation-id': orgId,
       'build-id': buildId,
-      platform: env.PLATFORM,
       tags: env.TAGS,
       'test-ids': env.TEST_IDS,
       'tags-query': env.TAGS_QUERY,

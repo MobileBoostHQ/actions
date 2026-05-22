@@ -1,21 +1,5 @@
 import { InvalidInputError } from './errors';
 
-/**
- * Lowercases and validates a platform input. Returns undefined for an empty
- * input (platform is optional and the API infers it). v1 accepts ios/android
- * only.
- */
-export function normalizePlatform(value: string): string | undefined {
-  const v = value.trim().toLowerCase();
-  if (!v) return undefined;
-  if (v !== 'ios' && v !== 'android') {
-    throw new InvalidInputError(
-      `Invalid platform "${value}". Use "ios" or "android".`,
-    );
-  }
-  return v;
-}
-
 /** Comma-separated string -> trimmed, non-empty items. */
 export function parseCsv(value: string): string[] {
   return value

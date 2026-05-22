@@ -1,27 +1,11 @@
 import { InvalidInputError } from '../../src/lib/errors';
 import {
-  normalizePlatform,
   parseBoolean,
   parseCsv,
   parseInteger,
   parseJsonArray,
   parseJsonObject,
 } from '../../src/lib/validate';
-
-describe('normalizePlatform', () => {
-  it('lowercases ios/android', () => {
-    expect(normalizePlatform('iOS')).toBe('ios');
-    expect(normalizePlatform('ANDROID')).toBe('android');
-  });
-  it('returns undefined for empty', () => {
-    expect(normalizePlatform('')).toBeUndefined();
-    expect(normalizePlatform('   ')).toBeUndefined();
-  });
-  it('rejects unknown platforms', () => {
-    expect(() => normalizePlatform('web')).toThrow(InvalidInputError);
-    expect(() => normalizePlatform('windows')).toThrow(/Use "ios" or "android"/);
-  });
-});
 
 describe('parseCsv', () => {
   it('splits, trims, and drops empties', () => {

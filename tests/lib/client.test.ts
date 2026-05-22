@@ -155,7 +155,6 @@ describe('uploadBuild', () => {
     const res = await createClient(KEY, BASE).uploadBuild({
       filePath: tmp,
       organisationId: 'org1',
-      platform: 'android',
     });
     expect(res.buildId).toBe('bid123');
     expect(res.appLink).toBe(

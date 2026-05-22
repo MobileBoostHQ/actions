@@ -14,9 +14,6 @@ inputs:
   build-id:
     description: 'Build ID from the upload-build action output.'
     required: true
-  platform:
-    description: 'Platform: ios or android. Optional; inferred from the build if omitted.'
-    required: false
 
   # Test selection — at least one of test-ids, tags, or tags-query is required.
   test-ids:

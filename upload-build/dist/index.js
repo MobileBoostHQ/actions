@@ -91788,8 +91788,6 @@ function createClient(apiKey, baseUrl) {
                     filename: path.basename(opts.filePath),
                 });
                 form.append('organisation_key', opts.organisationId);
-                if (opts.platform)
-                    form.append('platform', opts.platform);
                 if (opts.metadata !== undefined)
                     form.append('metadata', opts.metadata);
                 return http.sendStream('POST', url, form, {
@@ -91814,8 +91812,6 @@ function createClient(apiKey, baseUrl) {
                 organisationid: opts.organisationId,
                 buildid: opts.buildId,
             };
-            if (opts.platform)
-                payload['platform'] = opts.platform;
             if (opts.testIds?.length)
                 payload['testids'] = opts.testIds;
             if (opts.tags?.length)
@@ -92275,27 +92271,12 @@ exports.logger = {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.normalizePlatform = normalizePlatform;
 exports.parseCsv = parseCsv;
 exports.parseInteger = parseInteger;
 exports.parseBoolean = parseBoolean;
 exports.parseJsonObject = parseJsonObject;
 exports.parseJsonArray = parseJsonArray;
 const errors_1 = __nccwpck_require__(97268);
-/**
- * Lowercases and validates a platform input. Returns undefined for an empty
- * input (platform is optional and the API infers it). v1 accepts ios/android
- * only.
- */
-function normalizePlatform(value) {
-    const v = value.trim().toLowerCase();
-    if (!v)
-        return undefined;
-    if (v !== 'ios' && v !== 'android') {
-        throw new errors_1.InvalidInputError(`Invalid platform "${value}". Use "ios" or "android".`);
-    }
-    return v;
-}
 /** Comma-separated string -> trimmed, non-empty items. */
 function parseCsv(value) {
     return value
@@ -92396,7 +92377,6 @@ async function run() {
         const apiKey = core.getInput('api-key', { required: true });
         const organisationId = core.getInput('organisation-id', { required: true });
         const buildPath = core.getInput('build-path', { required: true });
-        const platform = (0, validate_1.normalizePlatform)(core.getInput('platform'));
         const metadataInput = core.getInput('metadata');
         // The API runs json.loads() on this field, so it must be a JSON object.
         // Validate up front for a clear error instead of a server-side 500.
@@ -92406,7 +92386,6 @@ async function run() {
         const client = (0, client_1.createClient)(apiKey, apiUrl);
         const outcome = await (0, upload_1.uploadBuild)(client, {
             organisationId,
-            platform,
             buildPath,
             metadata: metadataInput || undefined,
         });
@@ -92428,7 +92407,7 @@ async function run() {
     }
 }
 async function writeSummary(outcome) {
-    const { result, fileName, sizeBytes, platform } = outcome;
+    const { result, fileName, sizeBytes } = outcome;
     const wireSnippet = [
         '- uses: MobileBoostHQ/actions/run-tests@v1',
         '  with:',
@@ -92446,7 +92425,6 @@ async function writeSummary(outcome) {
         ],
         ['Build', fileName],
         ['Size', (0, format_1.formatBytes)(sizeBytes)],
-        ['Platform', platform ?? '(inferred)'],
         ['Build ID', `<code>${result.buildId}</code>`],
     ])
         .addLink('Open build in dashboard', result.appLink)
@@ -92517,7 +92495,6 @@ async function uploadBuild(client, params) {
     const result = await client.uploadBuild({
         filePath: resolved.filePath,
         organisationId: params.organisationId,
-        platform: params.platform,
         metadata: params.metadata,
     });
     logger_1.logger.info(`Upload complete. buildId=${result.buildId}`);
@@ -92525,7 +92502,6 @@ async function uploadBuild(client, params) {
         result,
         fileName,
         sizeBytes: resolved.sizeBytes,
-        platform: params.platform,
     };
 }
 

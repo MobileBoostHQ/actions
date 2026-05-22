@@ -3,7 +3,6 @@ import { createClient } from '../lib/client';
 import { InvalidInputError, MobileBoostError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import {
-  normalizePlatform,
   parseBoolean,
   parseCsv,
   parseInteger,
@@ -20,7 +19,6 @@ async function run(): Promise<void> {
     const apiKey = core.getInput('api-key', { required: true });
     const organisationId = core.getInput('organisation-id', { required: true });
     const buildId = core.getInput('build-id', { required: true });
-    const platform = normalizePlatform(core.getInput('platform'));
     const apiUrl = core.getInput('api-url') || 'https://api.mobileboost.io';
 
     // Test selection — at least one selector required.
@@ -59,7 +57,6 @@ async function run(): Promise<void> {
     const trigger = await triggerRun(client, {
       organisationId,
       buildId,
-      platform,
       testIds,
       tags,
       tagsQuery: tagsQuery || undefined,

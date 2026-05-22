@@ -20,14 +20,12 @@ const REQUEST_TIMEOUT_MS = 30_000;
 export interface UploadBuildOptions {
   filePath: string;
   organisationId: string;
-  platform?: string;
   metadata?: string;
 }
 
 export interface TriggerRunOptions {
   organisationId: string;
   buildId: string;
-  platform?: string;
   testIds?: string[];
   tags?: string[];
   tagsQuery?: string;
@@ -64,7 +62,6 @@ export function createClient(
           filename: path.basename(opts.filePath),
         });
         form.append('organisation_key', opts.organisationId);
-        if (opts.platform) form.append('platform', opts.platform);
         if (opts.metadata !== undefined) form.append('metadata', opts.metadata);
         return http.sendStream('POST', url, form, {
           ...form.getHeaders(),
@@ -94,7 +91,6 @@ export function createClient(
         organisationid: opts.organisationId,
         buildid: opts.buildId,
       };
-      if (opts.platform) payload['platform'] = opts.platform;
       if (opts.testIds?.length) payload['testids'] = opts.testIds;
       if (opts.tags?.length) payload['tags'] = opts.tags;
       if (opts.tagsQuery) payload['tagsquery'] = opts.tagsQuery;

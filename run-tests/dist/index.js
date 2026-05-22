@@ -28295,8 +28295,6 @@ function createClient(apiKey, baseUrl) {
                     filename: path.basename(opts.filePath),
                 });
                 form.append('organisation_key', opts.organisationId);
-                if (opts.platform)
-                    form.append('platform', opts.platform);
                 if (opts.metadata !== undefined)
                     form.append('metadata', opts.metadata);
                 return http.sendStream('POST', url, form, {
@@ -28321,8 +28319,6 @@ function createClient(apiKey, baseUrl) {
                 organisationid: opts.organisationId,
                 buildid: opts.buildId,
             };
-            if (opts.platform)
-                payload['platform'] = opts.platform;
             if (opts.testIds?.length)
                 payload['testids'] = opts.testIds;
             if (opts.tags?.length)
@@ -28659,27 +28655,12 @@ exports.logger = {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.normalizePlatform = normalizePlatform;
 exports.parseCsv = parseCsv;
 exports.parseInteger = parseInteger;
 exports.parseBoolean = parseBoolean;
 exports.parseJsonObject = parseJsonObject;
 exports.parseJsonArray = parseJsonArray;
 const errors_1 = __nccwpck_require__(7268);
-/**
- * Lowercases and validates a platform input. Returns undefined for an empty
- * input (platform is optional and the API infers it). v1 accepts ios/android
- * only.
- */
-function normalizePlatform(value) {
-    const v = value.trim().toLowerCase();
-    if (!v)
-        return undefined;
-    if (v !== 'ios' && v !== 'android') {
-        throw new errors_1.InvalidInputError(`Invalid platform "${value}". Use "ios" or "android".`);
-    }
-    return v;
-}
 /** Comma-separated string -> trimmed, non-empty items. */
 function parseCsv(value) {
     return value
@@ -28782,7 +28763,6 @@ async function run() {
         const apiKey = core.getInput('api-key', { required: true });
         const organisationId = core.getInput('organisation-id', { required: true });
         const buildId = core.getInput('build-id', { required: true });
-        const platform = (0, validate_1.normalizePlatform)(core.getInput('platform'));
         const apiUrl = core.getInput('api-url') || 'https://api.mobileboost.io';
         // Test selection — at least one selector required.
         const testIds = (0, validate_1.parseCsv)(core.getInput('test-ids'));
@@ -28806,7 +28786,6 @@ async function run() {
         const trigger = await (0, trigger_1.triggerRun)(client, {
             organisationId,
             buildId,
-            platform,
             testIds,
             tags,
             tagsQuery: tagsQuery || undefined,

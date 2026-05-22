@@ -11,9 +11,6 @@ inputs:
   organisation-id:
     description: 'Your MobileBoost organisation ID.'
     required: true
-  platform:
-    description: 'Platform of the build: ios or android. Optional; inferred if omitted.'
-    required: false
   build-path:
     description: |
       Path to the build file (.zip or .apk), a directory (will be zipped),

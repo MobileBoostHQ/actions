@@ -10,7 +10,6 @@ const WARN_SIZE_BYTES = 500 * 1024 * 1024;
 
 export interface UploadParams {
   organisationId: string;
-  platform?: string;
   buildPath: string;
   metadata?: string;
 }
@@ -19,7 +18,6 @@ export interface UploadOutcome {
   result: UploadResult;
   fileName: string;
   sizeBytes: number;
-  platform?: string;
 }
 
 /** Resolves the build path and uploads it. Pure-ish: no input/output wiring. */
@@ -43,7 +41,6 @@ export async function uploadBuild(
   const result = await client.uploadBuild({
     filePath: resolved.filePath,
     organisationId: params.organisationId,
-    platform: params.platform,
     metadata: params.metadata,
   });
 
@@ -52,6 +49,5 @@ export async function uploadBuild(
     result,
     fileName,
     sizeBytes: resolved.sizeBytes,
-    platform: params.platform,
   };
 }

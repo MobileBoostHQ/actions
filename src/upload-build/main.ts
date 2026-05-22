@@ -3,7 +3,7 @@ import { createClient } from '../lib/client';
 import { MobileBoostError } from '../lib/errors';
 import { formatBytes } from '../lib/format';
 import { logger } from '../lib/logger';
-import { normalizePlatform, parseJsonObject } from '../lib/validate';
+import { parseJsonObject } from '../lib/validate';
 import { uploadBuild, UploadOutcome } from './upload';
 
 async function run(): Promise<void> {
@@ -11,7 +11,6 @@ async function run(): Promise<void> {
     const apiKey = core.getInput('api-key', { required: true });
     const organisationId = core.getInput('organisation-id', { required: true });
     const buildPath = core.getInput('build-path', { required: true });
-    const platform = normalizePlatform(core.getInput('platform'));
     const metadataInput = core.getInput('metadata');
     // The API runs json.loads() on this field, so it must be a JSON object.
     // Validate up front for a clear error instead of a server-side 500.
@@ -21,7 +20,6 @@ async function run(): Promise<void> {
     const client = createClient(apiKey, apiUrl);
     const outcome = await uploadBuild(client, {
       organisationId,
-      platform,
       buildPath,
       metadata: metadataInput || undefined,
     });
@@ -43,7 +41,7 @@ async function run(): Promise<void> {
 }
 
 async function writeSummary(outcome: UploadOutcome): Promise<void> {
-  const { result, fileName, sizeBytes, platform } = outcome;
+  const { result, fileName, sizeBytes } = outcome;
   const wireSnippet = [
     '- uses: MobileBoostHQ/actions/run-tests@v1',
     '  with:',
@@ -62,7 +60,6 @@ async function writeSummary(outcome: UploadOutcome): Promise<void> {
       ],
       ['Build', fileName],
       ['Size', formatBytes(sizeBytes)],
-      ['Platform', platform ?? '(inferred)'],
       ['Build ID', `<code>${result.buildId}</code>`],
     ])
     .addLink('Open build in dashboard', result.appLink)

@@ -35,14 +35,12 @@ jobs:
         with:
           api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
           organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
-          platform: android
           build-path: app/build/outputs/apk/release/*.apk
 
       - uses: MobileBoostHQ/actions/run-tests@v1
         with:
           api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
           organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
-          platform: android
           build-id: ${{ steps.upload.outputs.build-id }}
           tags: smoke,critical
 ```
@@ -63,7 +61,6 @@ Uploads a build artifact and emits its `build-id` and dashboard link.
 | `api-key` | yes | — | MobileBoost API key (`mb_live_…`). Use a secret. |
 | `organisation-id` | yes | — | Your MobileBoost organisation ID. |
 | `build-path` | yes | — | Path to a `.zip`/`.apk` file, a directory (zipped automatically), or a glob (first match used). |
-| `platform` | no | inferred | `ios` or `android`. |
 | `metadata` | no | — | Metadata as a JSON object string (the API parses it as JSON). |
 | `api-url` | no | `https://api.mobileboost.io` | Override the API base URL. |
 
@@ -94,7 +91,6 @@ Triggers a test run against an uploaded build and (by default) waits for it.
 | `api-key` | yes | — | MobileBoost API key. Use a secret. |
 | `organisation-id` | yes | — | Your MobileBoost organisation ID. |
 | `build-id` | yes | — | Build ID from `upload-build`. |
-| `platform` | no | inferred | `ios` or `android`. |
 | `test-ids` | no* | — | Comma-separated test IDs. |
 | `tags` | no* | — | Comma-separated tags; tests matching **any** tag run. |
 | `tags-query` | no* | — | Tag query expression for advanced filtering. |
@@ -141,7 +137,6 @@ Triggers a test run against an uploaded build and (by default) waits for it.
   with:
     api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
     organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
-    platform: ios
     build-id: ${{ steps.upload.outputs.build-id }}
     test-ids: t_abc123,t_def456
     timeout-minutes: 30
@@ -171,7 +166,7 @@ Triggers a test run against an uploaded build and (by default) waits for it.
     fail-on-test-failure: false
 ```
 
-**Matrix over platforms:**
+**Matrix over platforms:** (the platform is inferred from each build)
 
 ```yaml
 strategy:
@@ -183,13 +178,11 @@ steps:
     with:
       api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
       organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
-      platform: ${{ matrix.platform }}
       build-path: build/${{ matrix.platform }}/*
   - uses: MobileBoostHQ/actions/run-tests@v1
     with:
       api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
       organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
-      platform: ${{ matrix.platform }}
       build-id: ${{ steps.upload.outputs.build-id }}
       tags: smoke
 ```
