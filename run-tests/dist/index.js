@@ -28995,12 +28995,9 @@ exports.writeRunSummary = writeRunSummary;
 const core = __importStar(__nccwpck_require__(7484));
 const format_1 = __nccwpck_require__(432);
 const APP_BASE_URL = 'https://app.mobileboost.io';
-/**
- * Suite-level dashboard URL. The API only returns per-test recording URLs of
- * the form /recording/{suiteId}/runs/{runId}; the suite page is the prefix.
- */
+/** Run-level dashboard (report) URL for a suite run. */
 function buildRunUrl(runId) {
-    return `${APP_BASE_URL}/recording/${runId}`;
+    return `${APP_BASE_URL}/gpt-driver/reports/${runId}`;
 }
 async function writeRunSummary(run, opts) {
     const passed = run.succeededTests.length;

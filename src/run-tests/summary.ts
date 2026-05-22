@@ -5,12 +5,9 @@ import { RunStatus, TestResult } from '../lib/types';
 
 const APP_BASE_URL = 'https://app.mobileboost.io';
 
-/**
- * Suite-level dashboard URL. The API only returns per-test recording URLs of
- * the form /recording/{suiteId}/runs/{runId}; the suite page is the prefix.
- */
+/** Run-level dashboard (report) URL for a suite run. */
 export function buildRunUrl(runId: string): string {
-  return `${APP_BASE_URL}/recording/${runId}`;
+  return `${APP_BASE_URL}/gpt-driver/reports/${runId}`;
 }
 
 export interface RunSummaryOptions {
