@@ -286,7 +286,9 @@ Best for **validating a build before it lands** on the default branch.
       NODE_EXTRA_CA_CERTS: /etc/ssl/certs/corp-ca.pem
     with: { ... }
   ```
-- **Self-hosted runners:** require Node 20+ on `PATH`.
+- **Self-hosted runners:** use a recent runner version. The action runs on the
+  runner's **bundled** Node 24 (not the machine's system Node), so keep the
+  runner application up to date; no separate Node install is required.
 - **`api-url`:** override the base URL for staging or a private deployment.
 
 ---

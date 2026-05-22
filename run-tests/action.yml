@@ -73,5 +73,5 @@ outputs:
   blocked:
     description: 'Number of blocked tests (sync mode only).'
 runs:
-  using: 'node20'
+  using: 'node24'
   main: 'dist/index.js'

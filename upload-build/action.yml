@@ -29,5 +29,5 @@ outputs:
   app-link:
     description: 'Dashboard URL for the uploaded build.'
 runs:
-  using: 'node20'
+  using: 'node24'
   main: 'dist/index.js'
