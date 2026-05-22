@@ -189,6 +189,91 @@ steps:
 
 ---
 
+## Trigger strategies
+
+Both actions are ordinary workflow steps, so they run under any trigger — only
+the `on:` block changes. The job below is the same in every case:
+
+```yaml
+jobs:
+  mobile-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: MobileBoostHQ/actions/upload-build@v1
+        id: upload
+        with:
+          api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
+          organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
+          build-path: app/build/outputs/apk/release/*.apk
+      - uses: MobileBoostHQ/actions/run-tests@v1
+        with:
+          api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
+          organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
+          build-id: ${{ steps.upload.outputs.build-id }}
+          tags: smoke
+```
+
+Pair it with whichever trigger fits:
+
+### On release or tag
+
+```yaml
+on:
+  push:
+    tags:
+      - 'v*.*.*' # v1.0.0, v20.15.10, …
+  release:
+    types: [published]
+```
+
+Best for **production builds** — stable and versioned.
+
+### Scheduled (nightly / weekly)
+
+```yaml
+on:
+  schedule:
+    - cron: '0 3 * * *' # daily at 03:00 UTC
+    # - cron: '0 6 * * 1'  # weekly, Mondays at 06:00 UTC
+```
+
+Best for **tracking regressions** over time.
+
+### Manual
+
+```yaml
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Tags to run'
+        required: false
+        default: 'smoke'
+```
+
+Then read the input in the run-tests step (`tags: ${{ inputs.tags }}`). Best for
+**ad-hoc runs** you control from the Actions tab.
+
+### On merged pull request
+
+```yaml
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  mobile-tests:
+    if: github.event.pull_request.merged == true # skip PRs closed without merging
+    runs-on: ubuntu-latest
+    steps:
+      # …upload-build + run-tests as above…
+```
+
+Best for **validating a build before it lands** on the default branch.
+
+---
+
 ## Enterprise / advanced
 
 - **Proxy:** both actions honor `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` from
@@ -220,17 +305,6 @@ Enable verbose logs by setting the repo secret/variable `ACTIONS_STEP_DEBUG` to
 `true`.
 
 ---
-
-## Contributing
-
-```bash
-npm ci
-npm run all   # lint + test + build
-```
-
-The compiled bundles in `upload-build/dist/` and `run-tests/dist/` are committed
-and **must be rebuilt** (`npm run build`) and committed whenever `src/` changes —
-CI enforces this.
 
 ## License
 
