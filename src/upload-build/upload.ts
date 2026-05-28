@@ -12,6 +12,7 @@ export interface UploadParams {
   organisationId: string;
   buildPath: string;
   metadata?: string;
+  ci?: string;
 }
 
 export interface UploadOutcome {
@@ -42,6 +43,7 @@ export async function uploadBuild(
     filePath: resolved.filePath,
     organisationId: params.organisationId,
     metadata: params.metadata,
+    ci: params.ci,
   });
 
   logger.info(`Upload complete. buildId=${result.buildId}`);

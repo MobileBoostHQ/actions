@@ -162,4 +162,29 @@ describe('uploadBuild', () => {
     );
     expect(scope.isDone()).toBe(true);
   });
+
+  it('includes the ci form field when provided', async () => {
+    const tmp = path.join(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'mb-upload-ci-')),
+      'app.zip',
+    );
+    fs.writeFileSync(tmp, 'zip-bytes');
+
+    let receivedBody = '';
+    const scope = nock(BASE)
+      .post('/uploadBuild/', (body) => {
+        receivedBody = typeof body === 'string' ? body : JSON.stringify(body);
+        return true;
+      })
+      .reply(200, { buildId: 'bid', app_link: 'http://x/bid' });
+
+    await createClient(KEY, BASE).uploadBuild({
+      filePath: tmp,
+      organisationId: 'org1',
+      ci: '{"commitSha":"abc","branch":"main"}',
+    });
+    expect(scope.isDone()).toBe(true);
+    expect(receivedBody).toContain('name="ci"');
+    expect(receivedBody).toContain('"commitSha":"abc"');
+  });
 });

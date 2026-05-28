@@ -28297,6 +28297,8 @@ function createClient(apiKey, baseUrl) {
                 form.append('organisation_key', opts.organisationId);
                 if (opts.metadata !== undefined)
                     form.append('metadata', opts.metadata);
+                if (opts.ci !== undefined)
+                    form.append('ci', opts.ci);
                 return http.sendStream('POST', url, form, {
                     ...form.getHeaders(),
                     ...authHeader,

@@ -91716,6 +91716,56 @@ ZipStream.prototype.finalize = function() {
 
 /***/ }),
 
+/***/ 18495:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+// Auto-collected source-control context for builds uploaded from CI.
+// The backend stores this as a top-level `ci` field on the upload doc, so the
+// dashboard can answer questions like "which build came from this branch/PR?".
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.collectGitHubCi = collectGitHubCi;
+/**
+ * Returns a CI info payload when running inside GitHub Actions, or `undefined`
+ * otherwise (local runs, the e2e harness, other CI providers).
+ *
+ * Note: on `pull_request` events `GITHUB_SHA` is GitHub's synthetic merge
+ * commit, not the PR head. That's fine — it identifies the exact tree that
+ * was built. The PR's head ref is captured separately in `branch`.
+ */
+function collectGitHubCi(env = process.env) {
+    if (env.GITHUB_ACTIONS !== 'true')
+        return undefined;
+    const commitSha = env.GITHUB_SHA ?? '';
+    const repo = env.GITHUB_REPOSITORY ?? '';
+    const event = env.GITHUB_EVENT_NAME ?? '';
+    // For PRs, GITHUB_REF_NAME is "<N>/merge"; the source branch lives in
+    // GITHUB_HEAD_REF. For push/dispatch, GITHUB_HEAD_REF is empty.
+    const branch = env.GITHUB_HEAD_REF || env.GITHUB_REF_NAME || '';
+    if (!commitSha && !repo && !branch)
+        return undefined;
+    const info = { commitSha, branch, repo, event };
+    const prNumber = parsePrNumber(env.GITHUB_REF, event);
+    if (prNumber !== undefined)
+        info.prNumber = prNumber;
+    return info;
+}
+function parsePrNumber(ref, event) {
+    if (event !== 'pull_request' && event !== 'pull_request_target')
+        return undefined;
+    if (!ref)
+        return undefined;
+    const m = /^refs\/pull\/(\d+)\//.exec(ref);
+    if (!m)
+        return undefined;
+    const n = parseInt(m[1], 10);
+    return Number.isFinite(n) ? n : undefined;
+}
+
+
+/***/ }),
+
 /***/ 47072:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -91790,6 +91840,8 @@ function createClient(apiKey, baseUrl) {
                 form.append('organisation_key', opts.organisationId);
                 if (opts.metadata !== undefined)
                     form.append('metadata', opts.metadata);
+                if (opts.ci !== undefined)
+                    form.append('ci', opts.ci);
                 return http.sendStream('POST', url, form, {
                     ...form.getHeaders(),
                     ...authHeader,
@@ -92366,6 +92418,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(37484));
+const ci_1 = __nccwpck_require__(18495);
 const client_1 = __nccwpck_require__(47072);
 const errors_1 = __nccwpck_require__(97268);
 const format_1 = __nccwpck_require__(50432);
@@ -92383,11 +92436,14 @@ async function run() {
         if (metadataInput)
             (0, validate_1.parseJsonObject)('metadata', metadataInput);
         const apiUrl = core.getInput('api-url') || 'https://api.mobileboost.io';
+        const ci = (0, ci_1.collectGitHubCi)();
+        const ciJson = ci ? JSON.stringify(ci) : undefined;
         const client = (0, client_1.createClient)(apiKey, apiUrl);
         const outcome = await (0, upload_1.uploadBuild)(client, {
             organisationId,
             buildPath,
             metadata: metadataInput || undefined,
+            ci: ciJson,
         });
         core.setOutput('build-id', outcome.result.buildId);
         core.setOutput('app-link', outcome.result.appLink);
@@ -92496,6 +92552,7 @@ async function uploadBuild(client, params) {
         filePath: resolved.filePath,
         organisationId: params.organisationId,
         metadata: params.metadata,
+        ci: params.ci,
     });
     logger_1.logger.info(`Upload complete. buildId=${result.buildId}`);
     return {

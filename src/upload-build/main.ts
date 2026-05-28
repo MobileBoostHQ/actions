@@ -1,4 +1,5 @@
 import * as core from '@actions/core';
+import { collectGitHubCi } from '../lib/ci';
 import { createClient } from '../lib/client';
 import { MobileBoostError } from '../lib/errors';
 import { formatBytes } from '../lib/format';
@@ -17,11 +18,15 @@ async function run(): Promise<void> {
     if (metadataInput) parseJsonObject('metadata', metadataInput);
     const apiUrl = core.getInput('api-url') || 'https://api.mobileboost.io';
 
+    const ci = collectGitHubCi();
+    const ciJson = ci ? JSON.stringify(ci) : undefined;
+
     const client = createClient(apiKey, apiUrl);
     const outcome = await uploadBuild(client, {
       organisationId,
       buildPath,
       metadata: metadataInput || undefined,
+      ci: ciJson,
     });
 
     core.setOutput('build-id', outcome.result.buildId);

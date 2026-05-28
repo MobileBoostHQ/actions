@@ -1,0 +1,10 @@
+# Dot-source to simulate a push to a branch (no PR).
+$env:GITHUB_ACTIONS    = "true"
+$env:GITHUB_SHA        = "9f8e7d6c5b4a39281706f5e4d3c2b1a09876543"
+$env:GITHUB_REPOSITORY = "MobileBoostHQ/example-app"
+$env:GITHUB_EVENT_NAME = "push"
+$env:GITHUB_HEAD_REF   = ""
+$env:GITHUB_BASE_REF   = ""
+$env:GITHUB_REF        = "refs/heads/develop"
+$env:GITHUB_REF_NAME   = "develop"
+Write-Host "Set fake GitHub push env (SHA=$($env:GITHUB_SHA.Substring(0,7)), branch=$env:GITHUB_REF_NAME)"
