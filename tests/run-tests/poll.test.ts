@@ -1,4 +1,4 @@
-import { TimeoutError } from '../../src/lib/errors';
+import { ApiError, TimeoutError } from '../../src/lib/errors';
 import { MobileBoostClient } from '../../src/lib/client';
 import { RunStatus, TestResult } from '../../src/lib/types';
 import {
@@ -103,6 +103,52 @@ describe('pollRun', () => {
         nowFn: () => (clock += 1000), // jumps past the budget on first check
       }),
     ).rejects.toBeInstanceOf(TimeoutError);
+  });
+
+  it('tolerates early 404s while the suite is still initializing', async () => {
+    // 404 three times (suite not written yet), then it appears and completes.
+    let clock = 0;
+    let calls = 0;
+    const getRunStatus = jest.fn(() => {
+      calls++;
+      if (calls <= 3) {
+        return Promise.reject(
+          new ApiError(404, 'Not found (404): Suite x not found'),
+        );
+      }
+      return Promise.resolve(
+        status({ status: 'completed', succeededTests: [test('a')] }),
+      );
+    });
+    const client = { getRunStatus } as unknown as MobileBoostClient;
+
+    const final = await pollRun(client, 'r', {
+      timeoutMs: 1_000_000,
+      dashboardUrl: 'http://dash',
+      sleepFn: noSleep,
+      nowFn: () => (clock += 1000), // 1s per check — well within the grace window
+    });
+    expect(final.status).toBe('completed');
+    expect(getRunStatus).toHaveBeenCalledTimes(4);
+  });
+
+  it('gives up on a 404 once the grace window has elapsed', async () => {
+    // Each check jumps the clock forward 60s, so by the time the failure
+    // budget is spent we are well past the 120s grace window.
+    let clock = 0;
+    const getRunStatus = jest.fn(() =>
+      Promise.reject(new ApiError(404, 'Not found (404): Suite x not found')),
+    );
+    const client = { getRunStatus } as unknown as MobileBoostClient;
+
+    await expect(
+      pollRun(client, 'r', {
+        timeoutMs: 1_000_000,
+        dashboardUrl: 'http://dash',
+        sleepFn: noSleep,
+        nowFn: () => (clock += 60_000),
+      }),
+    ).rejects.toThrow('Suite x not found');
   });
 
   it('tolerates up to 3 consecutive failures, then gives up', async () => {

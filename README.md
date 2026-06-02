@@ -43,10 +43,13 @@ jobs:
           organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
           build-id: ${{ steps.upload.outputs.build-id }}
           tags: smoke,critical
+          async: false
 ```
 
-The `run-tests` step waits for the run to finish and **fails the job** if any
-test fails or is blocked. A result table is written to the job summary.
+By default `run-tests` triggers the run and returns immediately (`async: true`).
+Set `async: false`, as above, to make the step wait for the run to finish and
+**fail the job** if any test fails or is blocked — a result table is then
+written to the job summary.
 
 ---
 
@@ -82,7 +85,7 @@ Uploads a build artifact and emits its `build-id` and dashboard link.
 
 ## `run-tests`
 
-Triggers a test run against an uploaded build and (by default) waits for it.
+Triggers a test run against an uploaded build and, with `async: false`, waits for it.
 
 ### Inputs
 
@@ -100,8 +103,8 @@ Triggers a test run against an uploaded build and (by default) waits for it.
 | `test-inputs` | no | — | JSON object of test inputs. |
 | `device-configs` | no | — | JSON **array** of device configurations. |
 | `metadata` | no | — | JSON object attached to the run. |
-| `async` | no | `false` | If `true`, return immediately after triggering. |
-| `timeout-minutes` | no | `60` | Max time to wait in sync mode. |
+| `async` | no | `true` | If `true` (the default), return immediately after triggering. Set `false` to poll until completion. |
+| `timeout-minutes` | no | `180` | Max time to wait in sync mode. |
 | `fail-on-test-failure` | no | `true` | Fail the action when any test fails or is blocked. |
 | `api-url` | no | `https://api.mobileboost.io` | Override the API base URL. |
 
@@ -118,31 +121,22 @@ Triggers a test run against an uploaded build and (by default) waits for it.
 
 ### Behavior
 
-- **Sync mode (default):** polls until the run is `completed` (or `cancelled`),
-  writes a result table to the job summary, sets the `passed`/`failed`/`blocked`
-  outputs, and fails the job when `fail-on-test-failure` is `true` and anything
-  failed or was blocked. A `cancelled` run always fails the job.
-- **Async mode (`async: true`):** triggers the run, sets `run-id`, and exits 0
-  immediately — useful when a later job inspects the run.
+- **Async mode (`async: true`, the default):** triggers the run, sets `run-id`,
+  and exits 0 immediately — useful when a later job inspects the run. Note that
+  `timeout-minutes` and `fail-on-test-failure` only apply in sync mode, so in
+  async mode the job does not wait for or gate on test results.
+- **Sync mode (`async: false`):** polls until the run is `completed` (or
+  `cancelled`), writes a result table to the job summary, sets the
+  `passed`/`failed`/`blocked` outputs, and fails the job when
+  `fail-on-test-failure` is `true` and anything failed or was blocked. A
+  `cancelled` run always fails the job.
 - **`iterations` caveat:** the API creates one suite run per iteration. This
   action **tracks only the first** run and warns if more were created. Leave
   `iterations` unset (the default) for a single tracked run.
 
 ### Examples
 
-**iOS, specific tests, custom timeout:**
-
-```yaml
-- uses: MobileBoostHQ/actions/run-tests@v1
-  with:
-    api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
-    organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
-    build-id: ${{ steps.upload.outputs.build-id }}
-    test-ids: t_abc123,t_def456
-    timeout-minutes: 30
-```
-
-**Trigger only, don't wait:**
+**Trigger only, don't wait (the default):**
 
 ```yaml
 - uses: MobileBoostHQ/actions/run-tests@v1
@@ -151,10 +145,22 @@ Triggers a test run against an uploaded build and (by default) waits for it.
     organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
     build-id: ${{ steps.upload.outputs.build-id }}
     tags: smoke
-    async: true
 ```
 
-**Don't fail the job on test failures (report only):**
+**Wait for completion with a custom timeout (sync mode):**
+
+```yaml
+- uses: MobileBoostHQ/actions/run-tests@v1
+  with:
+    api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
+    organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
+    build-id: ${{ steps.upload.outputs.build-id }}
+    test-ids: t_abc123,t_def456
+    async: false
+    timeout-minutes: 30
+```
+
+**Wait, but don't fail the job on test failures (report only):**
 
 ```yaml
 - uses: MobileBoostHQ/actions/run-tests@v1
@@ -163,6 +169,7 @@ Triggers a test run against an uploaded build and (by default) waits for it.
     organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
     build-id: ${{ steps.upload.outputs.build-id }}
     tags: regression
+    async: false
     fail-on-test-failure: false
 ```
 

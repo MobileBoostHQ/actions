@@ -1,5 +1,5 @@
 import { MobileBoostClient } from '../lib/client';
-import { TimeoutError } from '../lib/errors';
+import { ApiError, TimeoutError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { RunStatus } from '../lib/types';
 
@@ -11,6 +11,15 @@ export const TERMINAL_STATUSES = ['completed', 'cancelled'];
 const BASE_INTERVAL_MS = 10_000;
 const MAX_INTERVAL_MS = 30_000;
 const MAX_CONSECUTIVE_FAILURES = 3;
+
+// The backend hands back a run id synchronously but writes the suite document
+// asynchronously (the background-test server only creates it after the build
+// upload is confirmed processed). Until that write lands, GET /runs/{id}
+// returns a 404 — a transient "not registered yet", not a real failure. We
+// tolerate early 404s for this long before counting them against the failure
+// budget. Sized to the background-test server's worst-case upload-processing
+// wait (8 retries x 30s) before it writes the suite document.
+const SUITE_CREATION_GRACE_MS = 240_000;
 
 export function isTerminal(status: string): boolean {
   return TERMINAL_STATUSES.includes(status.toLowerCase());
@@ -64,15 +73,28 @@ export async function pollRun(
       logProgress(status);
       if (isTerminal(status.status)) return status;
     } catch (err) {
-      consecutiveFailures++;
-      const msg = err instanceof Error ? err.message : String(err);
-      if (consecutiveFailures > MAX_CONSECUTIVE_FAILURES) {
-        throw err;
+      // A 404 within the grace window means the suite document hasn't been
+      // written yet, not that the run is gone — keep polling without spending
+      // the failure budget. After the window, a 404 is a real "not found".
+      const isEarly404 =
+        err instanceof ApiError &&
+        err.statusCode === 404 &&
+        now() - start <= SUITE_CREATION_GRACE_MS;
+      if (isEarly404) {
+        logger.info(
+          `Run ${runId} not registered yet (suite still initializing), will keep polling…`,
+        );
+      } else {
+        consecutiveFailures++;
+        const msg = err instanceof Error ? err.message : String(err);
+        if (consecutiveFailures > MAX_CONSECUTIVE_FAILURES) {
+          throw err;
+        }
+        logger.warning(
+          `Status check failed (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}), ` +
+            `will retry: ${msg}`,
+        );
       }
-      logger.warning(
-        `Status check failed (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}), ` +
-          `will retry: ${msg}`,
-      );
     }
 
     await sleep(jitter(interval));

@@ -42,10 +42,10 @@ async function run(): Promise<void> {
     const deviceConfigs = optionalJsonArray('device-configs');
 
     // Action behavior.
-    const asyncMode = parseBoolean('async', core.getInput('async') || 'false');
+    const asyncMode = parseBoolean('async', core.getInput('async') || 'true');
     const timeoutMinutes = parseInteger(
       'timeout-minutes',
-      core.getInput('timeout-minutes') || '60',
+      core.getInput('timeout-minutes') || '180',
     );
     const failOnTestFailure = parseBoolean(
       'fail-on-test-failure',

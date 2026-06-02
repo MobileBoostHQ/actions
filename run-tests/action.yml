@@ -50,11 +50,11 @@ inputs:
   async:
     description: 'If true, return immediately after triggering. If false, poll until completion.'
     required: false
-    default: 'false'
+    default: 'true'
   timeout-minutes:
     description: 'Max time to wait in sync mode.'
     required: false
-    default: '60'
+    default: '180'
   fail-on-test-failure:
     description: 'If true (default), fail the action when any test fails or is blocked.'
     required: false

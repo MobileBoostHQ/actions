@@ -28781,8 +28781,8 @@ async function run() {
         const metadata = optionalJsonObject('metadata');
         const deviceConfigs = optionalJsonArray('device-configs');
         // Action behavior.
-        const asyncMode = (0, validate_1.parseBoolean)('async', core.getInput('async') || 'false');
-        const timeoutMinutes = (0, validate_1.parseInteger)('timeout-minutes', core.getInput('timeout-minutes') || '60');
+        const asyncMode = (0, validate_1.parseBoolean)('async', core.getInput('async') || 'true');
+        const timeoutMinutes = (0, validate_1.parseInteger)('timeout-minutes', core.getInput('timeout-minutes') || '180');
         const failOnTestFailure = (0, validate_1.parseBoolean)('fail-on-test-failure', core.getInput('fail-on-test-failure') || 'true');
         const client = (0, client_1.createClient)(apiKey, apiUrl);
         const trigger = await (0, trigger_1.triggerRun)(client, {
@@ -28889,6 +28889,14 @@ exports.TERMINAL_STATUSES = ['completed', 'cancelled'];
 const BASE_INTERVAL_MS = 10_000;
 const MAX_INTERVAL_MS = 30_000;
 const MAX_CONSECUTIVE_FAILURES = 3;
+// The backend hands back a run id synchronously but writes the suite document
+// asynchronously (the background-test server only creates it after the build
+// upload is confirmed processed). Until that write lands, GET /runs/{id}
+// returns a 404 — a transient "not registered yet", not a real failure. We
+// tolerate early 404s for this long before counting them against the failure
+// budget. Sized to the background-test server's worst-case upload-processing
+// wait (8 retries x 30s) before it writes the suite document.
+const SUITE_CREATION_GRACE_MS = 240_000;
 function isTerminal(status) {
     return exports.TERMINAL_STATUSES.includes(status.toLowerCase());
 }
@@ -28921,13 +28929,24 @@ async function pollRun(client, runId, options) {
                 return status;
         }
         catch (err) {
-            consecutiveFailures++;
-            const msg = err instanceof Error ? err.message : String(err);
-            if (consecutiveFailures > MAX_CONSECUTIVE_FAILURES) {
-                throw err;
+            // A 404 within the grace window means the suite document hasn't been
+            // written yet, not that the run is gone — keep polling without spending
+            // the failure budget. After the window, a 404 is a real "not found".
+            const isEarly404 = err instanceof errors_1.ApiError &&
+                err.statusCode === 404 &&
+                now() - start <= SUITE_CREATION_GRACE_MS;
+            if (isEarly404) {
+                logger_1.logger.info(`Run ${runId} not registered yet (suite still initializing), will keep polling…`);
             }
-            logger_1.logger.warning(`Status check failed (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}), ` +
-                `will retry: ${msg}`);
+            else {
+                consecutiveFailures++;
+                const msg = err instanceof Error ? err.message : String(err);
+                if (consecutiveFailures > MAX_CONSECUTIVE_FAILURES) {
+                    throw err;
+                }
+                logger_1.logger.warning(`Status check failed (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}), ` +
+                    `will retry: ${msg}`);
+            }
         }
         await sleep(jitter(interval));
         interval = Math.min(MAX_INTERVAL_MS, Math.round(interval * 1.5));
