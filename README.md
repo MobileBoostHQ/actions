@@ -126,17 +126,22 @@ came from. That works because `upload-build` stamps every CI upload with the
 commit, branch and PR number, so the run can be traced back to the PR without
 you wiring anything up. Requirements:
 
-1. The build was uploaded by `upload-build` running in GitHub Actions.
-2. The [MobileBoost GitHub App](https://github.com/apps/mobileboost-test-agent)
+1. **`enableAutotestPrComments` is set to `true` on your organisation.** This is
+   **off by default** — MobileBoost writes to your repository, so it stays off
+   until you deliberately turn it on. Ask support to enable it.
+2. The build was uploaded by `upload-build` running in GitHub Actions.
+3. The [MobileBoost GitHub App](https://github.com/apps/mobileboost-test-agent)
    is installed on the repository.
-3. The commit is on an open PR (or the run was triggered from a `pull_request`
+4. The commit is on an open PR (or the run was triggered from a `pull_request`
    event).
+
+Autotest runs work fine without any of this — you just get results in the job
+summary and the dashboard instead of on the PR.
 
 The comment is *sticky* — one comment per PR, rewritten on each new build,
 rather than a new comment per push. It leads with why each test failed in plain
 language, folds the pytest traceback into a `<details>` block, and calls out any
-test the agent auto-healed. Set `enableAutotestPrComments: false` on your
-organisation to turn it off.
+test the agent auto-healed.
 
 ### Outputs
 
