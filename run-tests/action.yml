@@ -14,6 +14,15 @@ inputs:
   build-id:
     description: 'Build ID from the upload-build action output.'
     required: true
+  mode:
+    description: |
+      Which kind of tests to run:
+        gpt-driver (default) — AI-driven suites authored in the dashboard.
+        autotest             — pytest files from your org's test repo, run on
+                               real devices with AI self-healing. Results are
+                               posted back to the PR the build came from.
+    required: false
+    default: 'gpt-driver'
 
   # Test selection — at least one of test-ids, tags, or tags-query is required.
   test-ids:
@@ -23,10 +32,22 @@ inputs:
     description: 'Comma-separated list of tags. Tests matching any tag will run.'
     required: false
   tags-query:
-    description: 'Tag query expression for advanced filtering.'
+    description: 'Tag query expression for advanced filtering. Not supported with mode: autotest.'
     required: false
 
-  # Run configuration
+  # Autotest-only configuration (mode: autotest)
+  tests-repo:
+    description: |
+      Git https URL of the repo holding the pytest files. Optional — defaults to
+      the repo configured on your organisation. Only used with mode: autotest.
+    required: false
+  use-physical-device:
+    description: |
+      Run on physical devices instead of simulators/emulators. Optional —
+      defaults to your organisation setting. Only used with mode: autotest.
+    required: false
+
+  # Run configuration (mode: gpt-driver only)
   iterations:
     description: 'Number of iterations (suite runs) to create. This action tracks only the first.'
     required: false

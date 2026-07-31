@@ -188,3 +188,95 @@ describe('uploadBuild', () => {
     expect(receivedBody).toContain('"commitSha":"abc"');
   });
 });
+
+describe('triggerAutotestRun', () => {
+  it('posts camelCase fields, names the build uploadId, and marks the run as CI', async () => {
+    let received: Record<string, unknown> = {};
+    nock(BASE)
+      .post('/tests/run', (body: Record<string, unknown>) => {
+        received = body;
+        return true;
+      })
+      .reply(200, {
+        message: 'Autotest run created',
+        run_id: 'ar1',
+        status: 'running',
+      });
+
+    const res = await createClient(KEY, BASE).triggerAutotestRun({
+      organisationId: 'org1',
+      buildId: 'build1',
+      tags: ['smoke'],
+      testsRepo: 'https://github.com/acme/tests.git',
+      usePhysicalDevice: true,
+    });
+
+    // /tests/run is NOT the CaseInsensitiveBaseModel endpoint /tests/execute is.
+    expect(received['organisationId']).toBe('org1');
+    expect(received['uploadId']).toBe('build1');
+    expect(received['buildId']).toBeUndefined();
+    expect(received['trigger']).toBe('ci');
+    expect(received['testsRepo']).toBe('https://github.com/acme/tests.git');
+    expect(received['usePhysicalDevice']).toBe(true);
+
+    expect(res.runId).toBe('ar1');
+    expect(res.allRunIds).toEqual(['ar1']);
+    expect(res.status).toBe('running');
+  });
+
+  it('omits selectors that were not provided', async () => {
+    let received: Record<string, unknown> = {};
+    nock(BASE)
+      .post('/tests/run', (body: Record<string, unknown>) => {
+        received = body;
+        return true;
+      })
+      .reply(200, { run_id: 'ar2', status: 'running' });
+
+    await createClient(KEY, BASE).triggerAutotestRun({
+      organisationId: 'org1',
+      buildId: 'build1',
+      testIds: ['t1'],
+    });
+    expect(received['testIds']).toEqual(['t1']);
+    expect(received['tags']).toBeUndefined();
+    expect(received['testsRepo']).toBeUndefined();
+    expect(received['usePhysicalDevice']).toBeUndefined();
+  });
+
+  it('fails loudly when run_id is missing', async () => {
+    nock(BASE).post('/tests/run').reply(200, { message: 'ok' });
+    await expect(
+      createClient(KEY, BASE).triggerAutotestRun({
+        organisationId: 'o',
+        buildId: 'b',
+        tags: ['x'],
+      }),
+    ).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe('getAutotestRunStatus', () => {
+  it('reads the autotest path, not the suite path', async () => {
+    const scope = nock(BASE)
+      .get('/autotest/runs/ar1')
+      .reply(200, {
+        runId: 'ar1',
+        status: 'completed',
+        totalTests: 2,
+        succeededTests: [
+          { id: 'e1', title: 'test_a.py', status: 'succeeded', recording: 'http://r/e1' },
+        ],
+        failedTests: [
+          { id: 'e2', title: 'test_b.py', status: 'failed', recording: 'http://r/e2' },
+        ],
+      });
+
+    const res = await createClient(KEY, BASE).getAutotestRunStatus('ar1');
+    expect(scope.isDone()).toBe(true);
+    expect(res.status).toBe('completed');
+    expect(res.succeededTests[0]?.title).toBe('test_a.py');
+    expect(res.failedTests[0]?.id).toBe('e2');
+    expect(res.blockedTests).toEqual([]);
+  });
+});

@@ -4,10 +4,17 @@ import { formatDuration } from '../lib/format';
 import { RunStatus, TestResult } from '../lib/types';
 
 const APP_BASE_URL = 'https://app.mobileboost.io';
+// Autotest runs are reported in the newer platform app, not the gpt-driver
+// dashboard — different product surface, different host.
+const PLATFORM_BASE_URL = 'https://platform.mobileboost.io';
 
-/** Run-level dashboard (report) URL for a suite run. */
-export function buildRunUrl(runId: string): string {
-  return `${APP_BASE_URL}/gpt-driver/reports/${runId}`;
+export type RunMode = 'gpt-driver' | 'autotest';
+
+/** Run-level dashboard (report) URL, per run mode. */
+export function buildRunUrl(runId: string, mode: RunMode = 'gpt-driver'): string {
+  return mode === 'autotest'
+    ? `${PLATFORM_BASE_URL}/reports/${runId}`
+    : `${APP_BASE_URL}/gpt-driver/reports/${runId}`;
 }
 
 export interface RunSummaryOptions {

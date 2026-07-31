@@ -12,9 +12,10 @@ const BASE_INTERVAL_MS = 10_000;
 const MAX_INTERVAL_MS = 30_000;
 const MAX_CONSECUTIVE_FAILURES = 3;
 
-// The backend hands back a run id synchronously but writes the suite document
-// asynchronously (the background-test server only creates it after the build
-// upload is confirmed processed). Until that write lands, GET /runs/{id}
+// The backend hands back a run id synchronously but writes the run document
+// asynchronously (for suites, the background-test server only creates it after
+// the build upload is confirmed processed; for autotests, the orchestrator
+// writes it from a background task). Until that write lands the status endpoint
 // returns a 404 — a transient "not registered yet", not a real failure. We
 // tolerate early 404s for this long before counting them against the failure
 // budget. Sized to the background-test server's worst-case upload-processing
@@ -41,6 +42,12 @@ export function isPassing(run: RunStatus): boolean {
 export interface PollOptions {
   timeoutMs: number;
   dashboardUrl: string;
+  /**
+   * Which status endpoint to poll. Autotest runs live in a different collection
+   * to suite runs and answer on a different path; the response shape is the
+   * same, so only the fetch differs. Defaults to the suite endpoint.
+   */
+  mode?: 'gpt-driver' | 'autotest';
   // Injection points for deterministic tests.
   intervalBaseMs?: number;
   sleepFn?: (ms: number) => Promise<void>;
@@ -58,6 +65,10 @@ export async function pollRun(
   const start = now();
   let interval = options.intervalBaseMs ?? BASE_INTERVAL_MS;
   let consecutiveFailures = 0;
+  const getStatus = (id: string): Promise<RunStatus> =>
+    options.mode === 'autotest'
+      ? client.getAutotestRunStatus(id)
+      : client.getRunStatus(id);
 
   for (;;) {
     if (now() - start > options.timeoutMs) {
@@ -68,7 +79,7 @@ export async function pollRun(
     }
 
     try {
-      const status = await client.getRunStatus(runId);
+      const status = await getStatus(runId);
       consecutiveFailures = 0;
       logProgress(status);
       if (isTerminal(status.status)) return status;

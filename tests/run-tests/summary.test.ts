@@ -7,3 +7,17 @@ describe('buildRunUrl', () => {
     );
   });
 });
+
+describe('buildRunUrl modes', () => {
+  it('defaults to the gpt-driver dashboard', () => {
+    expect(buildRunUrl('r1')).toBe(
+      'https://app.mobileboost.io/gpt-driver/reports/r1',
+    );
+  });
+
+  it('uses the platform report host for autotest runs', () => {
+    expect(buildRunUrl('r1', 'autotest')).toBe(
+      'https://platform.mobileboost.io/reports/r1',
+    );
+  });
+});

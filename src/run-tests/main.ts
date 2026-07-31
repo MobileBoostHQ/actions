@@ -11,8 +11,10 @@ import {
 } from '../lib/validate';
 import { isCancelled } from './poll';
 import { pollRun } from './poll';
-import { triggerRun } from './trigger';
-import { buildRunUrl, writeRunSummary } from './summary';
+import { triggerAutotestRun, triggerRun } from './trigger';
+import { buildRunUrl, RunMode, writeRunSummary } from './summary';
+
+const RUN_MODES: RunMode[] = ['gpt-driver', 'autotest'];
 
 async function run(): Promise<void> {
   try {
@@ -20,6 +22,7 @@ async function run(): Promise<void> {
     const organisationId = core.getInput('organisation-id', { required: true });
     const buildId = core.getInput('build-id', { required: true });
     const apiUrl = core.getInput('api-url') || 'https://api.mobileboost.io';
+    const mode = parseMode(core.getInput('mode'));
 
     // Test selection — at least one selector required.
     const testIds = parseCsv(core.getInput('test-ids'));
@@ -28,6 +31,14 @@ async function run(): Promise<void> {
     if (testIds.length === 0 && tags.length === 0 && !tagsQuery) {
       throw new InvalidInputError(
         'Provide at least one of `test-ids`, `tags`, or `tags-query`.',
+      );
+    }
+    // Fail loudly instead of silently dropping a selector the autotest endpoint
+    // has no equivalent for — a job that quietly ran the wrong tests is worse
+    // than one that didn't start.
+    if (mode === 'autotest' && tagsQuery) {
+      throw new InvalidInputError(
+        '`tags-query` is not supported when `mode: autotest` — use `test-ids` or `tags`.',
       );
     }
 
@@ -52,24 +63,57 @@ async function run(): Promise<void> {
       core.getInput('fail-on-test-failure') || 'true',
     );
 
+    // The autotest endpoint takes none of these. Say so rather than dropping
+    // them silently — a run configured with launch params that never reached
+    // the device looks like a product bug from the outside.
+    if (mode === 'autotest') {
+      const ignored = (
+        [
+          ['iterations', iterations],
+          ['launch-params', launchParams],
+          ['device-provider-settings', deviceProviderSettings],
+          ['test-inputs', testInputs],
+          ['device-configs', deviceConfigs],
+          ['metadata', metadata],
+        ] as const
+      )
+        .filter(([, value]) => value !== undefined)
+        .map(([name]) => name);
+      if (ignored.length > 0) {
+        logger.warning(
+          `mode: autotest ignores these inputs: ${ignored.join(', ')}.`,
+        );
+      }
+    }
+
     const client = createClient(apiKey, apiUrl);
 
-    const trigger = await triggerRun(client, {
-      organisationId,
-      buildId,
-      testIds,
-      tags,
-      tagsQuery: tagsQuery || undefined,
-      iterations,
-      launchParams,
-      deviceProviderSettings,
-      testInputs,
-      deviceConfigs,
-      metadata,
-    });
+    const trigger =
+      mode === 'autotest'
+        ? await triggerAutotestRun(client, {
+            organisationId,
+            buildId,
+            testIds,
+            tags,
+            testsRepo: core.getInput('tests-repo') || undefined,
+            usePhysicalDevice: optionalBoolean('use-physical-device'),
+          })
+        : await triggerRun(client, {
+            organisationId,
+            buildId,
+            testIds,
+            tags,
+            tagsQuery: tagsQuery || undefined,
+            iterations,
+            launchParams,
+            deviceProviderSettings,
+            testInputs,
+            deviceConfigs,
+            metadata,
+          });
     core.setOutput('run-id', trigger.runId);
 
-    const runUrl = buildRunUrl(trigger.runId);
+    const runUrl = buildRunUrl(trigger.runId, mode);
 
     if (asyncMode) {
       logger.info('async=true — returning immediately after triggering.');
@@ -81,6 +125,7 @@ async function run(): Promise<void> {
     const final = await pollRun(client, trigger.runId, {
       timeoutMs: timeoutMinutes * 60_000,
       dashboardUrl: runUrl,
+      mode,
     });
     const durationMs = Date.now() - startedAt;
 
@@ -119,9 +164,24 @@ async function run(): Promise<void> {
   }
 }
 
+function parseMode(raw: string): RunMode {
+  const value = (raw || 'gpt-driver').trim().toLowerCase();
+  if (!RUN_MODES.includes(value as RunMode)) {
+    throw new InvalidInputError(
+      `Invalid \`mode\`: "${raw}". Expected one of: ${RUN_MODES.join(', ')}.`,
+    );
+  }
+  return value as RunMode;
+}
+
 function optionalInt(name: string): number | undefined {
   const raw = core.getInput(name);
   return raw ? parseInteger(name, raw) : undefined;
+}
+
+function optionalBoolean(name: string): boolean | undefined {
+  const raw = core.getInput(name);
+  return raw ? parseBoolean(name, raw) : undefined;
 }
 
 function optionalJsonObject(name: string): Record<string, unknown> | undefined {

@@ -91827,6 +91827,19 @@ function createClient(apiKey, baseUrl) {
     const base = baseUrl.replace(/\/+$/, '');
     const http = new http_client_1.HttpClient(USER_AGENT);
     const authHeader = { Authorization: `Bearer ${apiKey}` };
+    /** Both status endpoints answer in the same shape; only the path differs. */
+    const fetchRunStatus = async (url, runId) => {
+        const body = await withRetry('getRunStatus', REQUEST_TIMEOUT_MS, () => http.get(url, { ...authHeader, Accept: 'application/json' }));
+        const json = parseJson(body, url);
+        return {
+            runId: asString(json['runId']) || runId,
+            status: asString(json['status']) || 'unknown',
+            totalTests: asNumber(json['totalTests']),
+            succeededTests: normalizeTests(json['succeededTests']),
+            failedTests: normalizeTests(json['failedTests']),
+            blockedTests: normalizeTests(json['blockedTests']),
+        };
+    };
     return {
         async uploadBuild(opts) {
             // Each attempt needs a fresh stream — a consumed multipart body can't be
@@ -91902,17 +91915,52 @@ function createClient(apiKey, baseUrl) {
         },
         async getRunStatus(runId) {
             // Org is derived server-side from the API key, so no org param here.
-            const url = `${base}/runs/${encodeURIComponent(runId)}`;
-            const body = await withRetry('getRunStatus', REQUEST_TIMEOUT_MS, () => http.get(url, { ...authHeader, Accept: 'application/json' }));
-            const json = parseJson(body, url);
-            return {
-                runId: asString(json['runId']) || runId,
-                status: asString(json['status']) || 'unknown',
-                totalTests: asNumber(json['totalTests']),
-                succeededTests: normalizeTests(json['succeededTests']),
-                failedTests: normalizeTests(json['failedTests']),
-                blockedTests: normalizeTests(json['blockedTests']),
+            return fetchRunStatus(`${base}/runs/${encodeURIComponent(runId)}`, runId);
+        },
+        async triggerAutotestRun(opts) {
+            const url = `${base}/tests/run`;
+            // This endpoint takes the exact camelCase field names (it is not the
+            // CaseInsensitiveBaseModel the /tests/execute payload goes through), and
+            // names the build `uploadId` rather than `buildId`.
+            const payload = {
+                organisationId: opts.organisationId,
+                uploadId: opts.buildId,
+                // Tells the backend this run is gating a PR, which is what makes the
+                // result eligible to be posted back as a PR comment.
+                trigger: 'ci',
             };
+            if (opts.testIds?.length)
+                payload['testIds'] = opts.testIds;
+            if (opts.tags?.length)
+                payload['tags'] = opts.tags;
+            if (opts.testsRepo)
+                payload['testsRepo'] = opts.testsRepo;
+            if (opts.usePhysicalDevice !== undefined) {
+                payload['usePhysicalDevice'] = opts.usePhysicalDevice;
+            }
+            const body = await withRetry('triggerAutotestRun', REQUEST_TIMEOUT_MS, () => http.post(url, JSON.stringify(payload), {
+                ...authHeader,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+            }));
+            const json = parseJson(body, url);
+            // The background-test server answers with a single run id — there is no
+            // iterations concept here, so allRunIds is always that one id.
+            const runId = asString(json['run_id']);
+            if (!runId) {
+                throw new errors_1.ApiError(200, `Autotest trigger returned no run_id — nothing to track. Response: ${truncate(body)}`, body);
+            }
+            return {
+                runId,
+                allRunIds: [runId],
+                status: asString(json['status']) || 'unknown',
+                message: asString(json['message']),
+            };
+        },
+        async getAutotestRunStatus(runId) {
+            // Separate path from getRunStatus: /runs/{id} resolves against the suite
+            // collection, which knows nothing about autotest runs.
+            return fetchRunStatus(`${base}/autotest/runs/${encodeURIComponent(runId)}`, runId);
         },
     };
 }

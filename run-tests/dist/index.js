@@ -28284,6 +28284,19 @@ function createClient(apiKey, baseUrl) {
     const base = baseUrl.replace(/\/+$/, '');
     const http = new http_client_1.HttpClient(USER_AGENT);
     const authHeader = { Authorization: `Bearer ${apiKey}` };
+    /** Both status endpoints answer in the same shape; only the path differs. */
+    const fetchRunStatus = async (url, runId) => {
+        const body = await withRetry('getRunStatus', REQUEST_TIMEOUT_MS, () => http.get(url, { ...authHeader, Accept: 'application/json' }));
+        const json = parseJson(body, url);
+        return {
+            runId: asString(json['runId']) || runId,
+            status: asString(json['status']) || 'unknown',
+            totalTests: asNumber(json['totalTests']),
+            succeededTests: normalizeTests(json['succeededTests']),
+            failedTests: normalizeTests(json['failedTests']),
+            blockedTests: normalizeTests(json['blockedTests']),
+        };
+    };
     return {
         async uploadBuild(opts) {
             // Each attempt needs a fresh stream — a consumed multipart body can't be
@@ -28359,17 +28372,52 @@ function createClient(apiKey, baseUrl) {
         },
         async getRunStatus(runId) {
             // Org is derived server-side from the API key, so no org param here.
-            const url = `${base}/runs/${encodeURIComponent(runId)}`;
-            const body = await withRetry('getRunStatus', REQUEST_TIMEOUT_MS, () => http.get(url, { ...authHeader, Accept: 'application/json' }));
-            const json = parseJson(body, url);
-            return {
-                runId: asString(json['runId']) || runId,
-                status: asString(json['status']) || 'unknown',
-                totalTests: asNumber(json['totalTests']),
-                succeededTests: normalizeTests(json['succeededTests']),
-                failedTests: normalizeTests(json['failedTests']),
-                blockedTests: normalizeTests(json['blockedTests']),
+            return fetchRunStatus(`${base}/runs/${encodeURIComponent(runId)}`, runId);
+        },
+        async triggerAutotestRun(opts) {
+            const url = `${base}/tests/run`;
+            // This endpoint takes the exact camelCase field names (it is not the
+            // CaseInsensitiveBaseModel the /tests/execute payload goes through), and
+            // names the build `uploadId` rather than `buildId`.
+            const payload = {
+                organisationId: opts.organisationId,
+                uploadId: opts.buildId,
+                // Tells the backend this run is gating a PR, which is what makes the
+                // result eligible to be posted back as a PR comment.
+                trigger: 'ci',
             };
+            if (opts.testIds?.length)
+                payload['testIds'] = opts.testIds;
+            if (opts.tags?.length)
+                payload['tags'] = opts.tags;
+            if (opts.testsRepo)
+                payload['testsRepo'] = opts.testsRepo;
+            if (opts.usePhysicalDevice !== undefined) {
+                payload['usePhysicalDevice'] = opts.usePhysicalDevice;
+            }
+            const body = await withRetry('triggerAutotestRun', REQUEST_TIMEOUT_MS, () => http.post(url, JSON.stringify(payload), {
+                ...authHeader,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+            }));
+            const json = parseJson(body, url);
+            // The background-test server answers with a single run id — there is no
+            // iterations concept here, so allRunIds is always that one id.
+            const runId = asString(json['run_id']);
+            if (!runId) {
+                throw new errors_1.ApiError(200, `Autotest trigger returned no run_id — nothing to track. Response: ${truncate(body)}`, body);
+            }
+            return {
+                runId,
+                allRunIds: [runId],
+                status: asString(json['status']) || 'unknown',
+                message: asString(json['message']),
+            };
+        },
+        async getAutotestRunStatus(runId) {
+            // Separate path from getRunStatus: /runs/{id} resolves against the suite
+            // collection, which knows nothing about autotest runs.
+            return fetchRunStatus(`${base}/autotest/runs/${encodeURIComponent(runId)}`, runId);
         },
     };
 }
@@ -28760,18 +28808,26 @@ const poll_1 = __nccwpck_require__(9384);
 const poll_2 = __nccwpck_require__(9384);
 const trigger_1 = __nccwpck_require__(833);
 const summary_1 = __nccwpck_require__(5941);
+const RUN_MODES = ['gpt-driver', 'autotest'];
 async function run() {
     try {
         const apiKey = core.getInput('api-key', { required: true });
         const organisationId = core.getInput('organisation-id', { required: true });
         const buildId = core.getInput('build-id', { required: true });
         const apiUrl = core.getInput('api-url') || 'https://api.mobileboost.io';
+        const mode = parseMode(core.getInput('mode'));
         // Test selection — at least one selector required.
         const testIds = (0, validate_1.parseCsv)(core.getInput('test-ids'));
         const tags = (0, validate_1.parseCsv)(core.getInput('tags'));
         const tagsQuery = core.getInput('tags-query').trim();
         if (testIds.length === 0 && tags.length === 0 && !tagsQuery) {
             throw new errors_1.InvalidInputError('Provide at least one of `test-ids`, `tags`, or `tags-query`.');
+        }
+        // Fail loudly instead of silently dropping a selector the autotest endpoint
+        // has no equivalent for — a job that quietly ran the wrong tests is worse
+        // than one that didn't start.
+        if (mode === 'autotest' && tagsQuery) {
+            throw new errors_1.InvalidInputError('`tags-query` is not supported when `mode: autotest` — use `test-ids` or `tags`.');
         }
         // Run configuration (all optional).
         const iterations = optionalInt('iterations');
@@ -28784,22 +28840,49 @@ async function run() {
         const asyncMode = (0, validate_1.parseBoolean)('async', core.getInput('async') || 'true');
         const timeoutMinutes = (0, validate_1.parseInteger)('timeout-minutes', core.getInput('timeout-minutes') || '180');
         const failOnTestFailure = (0, validate_1.parseBoolean)('fail-on-test-failure', core.getInput('fail-on-test-failure') || 'true');
+        // The autotest endpoint takes none of these. Say so rather than dropping
+        // them silently — a run configured with launch params that never reached
+        // the device looks like a product bug from the outside.
+        if (mode === 'autotest') {
+            const ignored = [
+                ['iterations', iterations],
+                ['launch-params', launchParams],
+                ['device-provider-settings', deviceProviderSettings],
+                ['test-inputs', testInputs],
+                ['device-configs', deviceConfigs],
+                ['metadata', metadata],
+            ]
+                .filter(([, value]) => value !== undefined)
+                .map(([name]) => name);
+            if (ignored.length > 0) {
+                logger_1.logger.warning(`mode: autotest ignores these inputs: ${ignored.join(', ')}.`);
+            }
+        }
         const client = (0, client_1.createClient)(apiKey, apiUrl);
-        const trigger = await (0, trigger_1.triggerRun)(client, {
-            organisationId,
-            buildId,
-            testIds,
-            tags,
-            tagsQuery: tagsQuery || undefined,
-            iterations,
-            launchParams,
-            deviceProviderSettings,
-            testInputs,
-            deviceConfigs,
-            metadata,
-        });
+        const trigger = mode === 'autotest'
+            ? await (0, trigger_1.triggerAutotestRun)(client, {
+                organisationId,
+                buildId,
+                testIds,
+                tags,
+                testsRepo: core.getInput('tests-repo') || undefined,
+                usePhysicalDevice: optionalBoolean('use-physical-device'),
+            })
+            : await (0, trigger_1.triggerRun)(client, {
+                organisationId,
+                buildId,
+                testIds,
+                tags,
+                tagsQuery: tagsQuery || undefined,
+                iterations,
+                launchParams,
+                deviceProviderSettings,
+                testInputs,
+                deviceConfigs,
+                metadata,
+            });
         core.setOutput('run-id', trigger.runId);
-        const runUrl = (0, summary_1.buildRunUrl)(trigger.runId);
+        const runUrl = (0, summary_1.buildRunUrl)(trigger.runId, mode);
         if (asyncMode) {
             logger_1.logger.info('async=true — returning immediately after triggering.');
             await writeAsyncSummary(trigger.runId, trigger.status, runUrl);
@@ -28809,6 +28892,7 @@ async function run() {
         const final = await (0, poll_2.pollRun)(client, trigger.runId, {
             timeoutMs: timeoutMinutes * 60_000,
             dashboardUrl: runUrl,
+            mode,
         });
         const durationMs = Date.now() - startedAt;
         const passed = final.succeededTests.length;
@@ -28842,9 +28926,20 @@ async function run() {
         }
     }
 }
+function parseMode(raw) {
+    const value = (raw || 'gpt-driver').trim().toLowerCase();
+    if (!RUN_MODES.includes(value)) {
+        throw new errors_1.InvalidInputError(`Invalid \`mode\`: "${raw}". Expected one of: ${RUN_MODES.join(', ')}.`);
+    }
+    return value;
+}
 function optionalInt(name) {
     const raw = core.getInput(name);
     return raw ? (0, validate_1.parseInteger)(name, raw) : undefined;
+}
+function optionalBoolean(name) {
+    const raw = core.getInput(name);
+    return raw ? (0, validate_1.parseBoolean)(name, raw) : undefined;
 }
 function optionalJsonObject(name) {
     const raw = core.getInput(name);
@@ -28889,9 +28984,10 @@ exports.TERMINAL_STATUSES = ['completed', 'cancelled'];
 const BASE_INTERVAL_MS = 10_000;
 const MAX_INTERVAL_MS = 30_000;
 const MAX_CONSECUTIVE_FAILURES = 3;
-// The backend hands back a run id synchronously but writes the suite document
-// asynchronously (the background-test server only creates it after the build
-// upload is confirmed processed). Until that write lands, GET /runs/{id}
+// The backend hands back a run id synchronously but writes the run document
+// asynchronously (for suites, the background-test server only creates it after
+// the build upload is confirmed processed; for autotests, the orchestrator
+// writes it from a background task). Until that write lands the status endpoint
 // returns a 404 — a transient "not registered yet", not a real failure. We
 // tolerate early 404s for this long before counting them against the failure
 // budget. Sized to the background-test server's worst-case upload-processing
@@ -28916,13 +29012,16 @@ async function pollRun(client, runId, options) {
     const start = now();
     let interval = options.intervalBaseMs ?? BASE_INTERVAL_MS;
     let consecutiveFailures = 0;
+    const getStatus = (id) => options.mode === 'autotest'
+        ? client.getAutotestRunStatus(id)
+        : client.getRunStatus(id);
     for (;;) {
         if (now() - start > options.timeoutMs) {
             throw new errors_1.TimeoutError(`Run ${runId} did not finish within the timeout. It is still running ` +
                 `on MobileBoost — see ${options.dashboardUrl}`);
         }
         try {
-            const status = await client.getRunStatus(runId);
+            const status = await getStatus(runId);
             consecutiveFailures = 0;
             logProgress(status);
             if (isTerminal(status.status))
@@ -29016,9 +29115,14 @@ exports.writeRunSummary = writeRunSummary;
 const core = __importStar(__nccwpck_require__(7484));
 const format_1 = __nccwpck_require__(432);
 const APP_BASE_URL = 'https://app.mobileboost.io';
-/** Run-level dashboard (report) URL for a suite run. */
-function buildRunUrl(runId) {
-    return `${APP_BASE_URL}/gpt-driver/reports/${runId}`;
+// Autotest runs are reported in the newer platform app, not the gpt-driver
+// dashboard — different product surface, different host.
+const PLATFORM_BASE_URL = 'https://platform.mobileboost.io';
+/** Run-level dashboard (report) URL, per run mode. */
+function buildRunUrl(runId, mode = 'gpt-driver') {
+    return mode === 'autotest'
+        ? `${PLATFORM_BASE_URL}/reports/${runId}`
+        : `${APP_BASE_URL}/gpt-driver/reports/${runId}`;
 }
 async function writeRunSummary(run, opts) {
     const passed = run.succeededTests.length;
@@ -29084,11 +29188,12 @@ function escapeHtml(value) {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.triggerRun = triggerRun;
+exports.triggerAutotestRun = triggerAutotestRun;
 const logger_1 = __nccwpck_require__(2415);
 /**
- * Triggers a run and returns the result. The backend creates one suite per
- * `iterations`; this action tracks only the first (we warn when there are
- * more, so iterations>1 results aren't silently dropped).
+ * Triggers a GPT-Driver suite run and returns the result. The backend creates
+ * one suite per `iterations`; this action tracks only the first (we warn when
+ * there are more, so iterations>1 results aren't silently dropped).
  */
 async function triggerRun(client, opts) {
     const result = await client.triggerRun(opts);
@@ -29098,6 +29203,16 @@ async function triggerRun(client, opts) {
             `this action tracks only the first: ${result.runId}. ` +
             `All run ids: ${result.allRunIds.join(', ')}`);
     }
+    return result;
+}
+/**
+ * Triggers an autotest run (pytest files from the org's test repo, executed on
+ * real devices). Always one run — the endpoint has no `iterations`, so there is
+ * nothing to warn about here.
+ */
+async function triggerAutotestRun(client, opts) {
+    const result = await client.triggerAutotestRun(opts);
+    logger_1.logger.info(`Triggered autotest run ${result.runId} (status: ${result.status})`);
     return result;
 }
 

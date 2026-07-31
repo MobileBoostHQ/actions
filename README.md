@@ -94,21 +94,49 @@ Triggers a test run against an uploaded build and, with `async: false`, waits fo
 | `api-key` | yes | — | MobileBoost API key. Use a secret. |
 | `organisation-id` | yes | — | Your MobileBoost organisation ID. |
 | `build-id` | yes | — | Build ID from `upload-build`. |
+| `mode` | no | `gpt-driver` | `gpt-driver` for AI suites authored in the dashboard, `autotest` for pytest files from your test repo. See [Modes](#modes). |
 | `test-ids` | no* | — | Comma-separated test IDs. |
 | `tags` | no* | — | Comma-separated tags; tests matching **any** tag run. |
-| `tags-query` | no* | — | Tag query expression for advanced filtering. |
-| `iterations` | no | — | Number of suite runs to create (see caveat below). |
-| `launch-params` | no | — | JSON object of launch parameters. |
-| `device-provider-settings` | no | — | JSON object of device provider settings. |
-| `test-inputs` | no | — | JSON object of test inputs. |
-| `device-configs` | no | — | JSON **array** of device configurations. |
-| `metadata` | no | — | JSON object attached to the run. |
+| `tags-query` | no* | — | Tag query expression for advanced filtering. Not supported with `mode: autotest`. |
+| `tests-repo` | no | org default | `autotest` only. Git https URL of the repo holding the pytest files. |
+| `use-physical-device` | no | org default | `autotest` only. Run on physical devices instead of simulators/emulators. |
+| `iterations` | no | — | `gpt-driver` only. Number of suite runs to create (see caveat below). |
+| `launch-params` | no | — | `gpt-driver` only. JSON object of launch parameters. |
+| `device-provider-settings` | no | — | `gpt-driver` only. JSON object of device provider settings. |
+| `test-inputs` | no | — | `gpt-driver` only. JSON object of test inputs. |
+| `device-configs` | no | — | `gpt-driver` only. JSON **array** of device configurations. |
+| `metadata` | no | — | `gpt-driver` only. JSON object attached to the run. |
 | `async` | no | `true` | If `true` (the default), return immediately after triggering. Set `false` to poll until completion. |
 | `timeout-minutes` | no | `180` | Max time to wait in sync mode. |
 | `fail-on-test-failure` | no | `true` | Fail the action when any test fails or is blocked. |
 | `api-url` | no | `https://api.mobileboost.io` | Override the API base URL. |
 
 \* At least one of `test-ids`, `tags`, or `tags-query` is required.
+
+### Modes
+
+**`gpt-driver` (default)** — the AI-driven suites you author in the dashboard.
+
+**`autotest`** — pytest files from your organisation's test repo, executed on
+real devices, with an AI agent that self-heals broken selectors and flags
+changes it judges product-impacting rather than papering over them.
+
+Autotest runs post their results **straight back to the pull request** the build
+came from. That works because `upload-build` stamps every CI upload with the
+commit, branch and PR number, so the run can be traced back to the PR without
+you wiring anything up. Requirements:
+
+1. The build was uploaded by `upload-build` running in GitHub Actions.
+2. The [MobileBoost GitHub App](https://github.com/apps/mobileboost-test-agent)
+   is installed on the repository.
+3. The commit is on an open PR (or the run was triggered from a `pull_request`
+   event).
+
+The comment is *sticky* — one comment per PR, rewritten on each new build,
+rather than a new comment per push. It leads with why each test failed in plain
+language, folds the pytest traceback into a `<details>` block, and calls out any
+test the agent auto-healed. Set `enableAutotestPrComments: false` on your
+organisation to turn it off.
 
 ### Outputs
 
@@ -146,6 +174,30 @@ Triggers a test run against an uploaded build and, with `async: false`, waits fo
     build-id: ${{ steps.upload.outputs.build-id }}
     tags: smoke
 ```
+
+**Autotest on a pull request, with results posted back to the PR:**
+
+```yaml
+- uses: MobileBoostHQ/actions/upload-build@v1
+  id: upload
+  with:
+    api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
+    organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
+    build-path: app/build/outputs/apk/debug/app-debug.apk
+
+- uses: MobileBoostHQ/actions/run-tests@v1
+  with:
+    api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
+    organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
+    build-id: ${{ steps.upload.outputs.build-id }}
+    mode: autotest
+    tags: smoke
+    async: false
+```
+
+No `permissions:` block and no `GITHUB_TOKEN` needed — the comment is posted by
+the MobileBoost GitHub App, which also means it works on pull requests from
+forks, where the workflow token is read-only.
 
 **Wait for completion with a custom timeout (sync mode):**
 

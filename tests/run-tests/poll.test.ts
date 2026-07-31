@@ -166,3 +166,45 @@ describe('pollRun', () => {
     expect(getRunStatus).toHaveBeenCalledTimes(4);
   });
 });
+
+describe('pollRun mode routing', () => {
+  it('polls the suite endpoint by default', async () => {
+    const getRunStatus = jest.fn(() =>
+      Promise.resolve(status({ status: 'completed' })),
+    );
+    const getAutotestRunStatus = jest.fn();
+    const client = {
+      getRunStatus,
+      getAutotestRunStatus,
+    } as unknown as MobileBoostClient;
+
+    await pollRun(client, 'r', {
+      timeoutMs: 1_000_000,
+      dashboardUrl: 'http://dash',
+      sleepFn: noSleep,
+    });
+    expect(getRunStatus).toHaveBeenCalledTimes(1);
+    expect(getAutotestRunStatus).not.toHaveBeenCalled();
+  });
+
+  it('polls the autotest endpoint in autotest mode', async () => {
+    const getRunStatus = jest.fn();
+    const getAutotestRunStatus = jest.fn(() =>
+      Promise.resolve(status({ status: 'completed' })),
+    );
+    const client = {
+      getRunStatus,
+      getAutotestRunStatus,
+    } as unknown as MobileBoostClient;
+
+    const final = await pollRun(client, 'ar1', {
+      timeoutMs: 1_000_000,
+      dashboardUrl: 'http://dash',
+      sleepFn: noSleep,
+      mode: 'autotest',
+    });
+    expect(final.status).toBe('completed');
+    expect(getAutotestRunStatus).toHaveBeenCalledWith('ar1');
+    expect(getRunStatus).not.toHaveBeenCalled();
+  });
+});
