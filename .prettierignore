@@ -1,6 +1,7 @@
 node_modules/
 upload-build/dist/
 run-tests/dist/
+setup-local-tunnel/dist/
 lib/
 coverage/
 licenses.txt

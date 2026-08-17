@@ -31,10 +31,10 @@ jobs:
         # The bundled dist/ is committed. If a PR changed src/ but forgot to
         # rebuild, the working tree differs here — fail loudly.
         run: |
-          if [ -n "$(git status --porcelain -- upload-build/dist run-tests/dist)" ]; then
+          if [ -n "$(git status --porcelain -- upload-build/dist run-tests/dist setup-local-tunnel/dist)" ]; then
             echo "::error::dist/ is out of date. Run 'npm run build' and commit the result."
-            git status --porcelain -- upload-build/dist run-tests/dist
-            git diff -- upload-build/dist run-tests/dist
+            git status --porcelain -- upload-build/dist run-tests/dist setup-local-tunnel/dist
+            git diff -- upload-build/dist run-tests/dist setup-local-tunnel/dist
             exit 1
           fi
           echo "dist/ is up to date."

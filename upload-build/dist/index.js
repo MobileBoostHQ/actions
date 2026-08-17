@@ -91925,8 +91925,10 @@ function createClient(apiKey, baseUrl) {
             const payload = {
                 organisationId: opts.organisationId,
                 uploadId: opts.buildId,
-                // Tells the backend this run is gating a PR, which is what makes the
-                // result eligible to be posted back as a PR comment.
+                // Provenance only — recorded on the run doc and used to tell CI runs
+                // apart from dashboard ones. It does NOT gate the PR comment: that is
+                // decided by the org's enableAutotestPrComments flag and whether the
+                // build carries CI metadata.
                 trigger: 'ci',
             };
             if (opts.testIds?.length)

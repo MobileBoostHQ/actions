@@ -1,0 +1,43 @@
+name: 'MobileBoost — Setup Local Tunnel'
+description: 'Open a MobileBoost Local tunnel for this job so tests reach services inside your network, and close it however the job ends.'
+author: 'MobileBoost'
+branding:
+  icon: 'shuffle'
+  color: 'purple'
+inputs:
+  api-key:
+    description: 'MobileBoost API key. Store as a GitHub secret. A key scoped to `tunnel:connect` is enough.'
+    required: true
+  only-hosts:
+    description: |
+      Comma-separated hosts this tunnel may reach, e.g. `*.acme.internal,10.0.0.0/8`.
+      Strongly recommended: anything not listed is refused on the runner rather
+      than carried, so unrelated traffic stays off the tunnel.
+    required: false
+  exclude-hosts:
+    description: 'Comma-separated hosts it may never reach. Wins over `only-hosts`.'
+    required: false
+  tunnel-name:
+    description: |
+      Override the generated name. By default each job gets its own name derived
+      from the run id, attempt and job, so parallel and matrix jobs cannot
+      collide. Set this only when several jobs must share one tunnel.
+    required: false
+  version:
+    description: 'Pin a binary version, e.g. `v0.2.2`. Defaults to the latest release.'
+    required: false
+    default: 'latest'
+  wait-for-ready:
+    description: 'How long to wait for the tunnel to become usable before failing the step.'
+    required: false
+    default: '60s'
+outputs:
+  tunnel-name:
+    description: 'The tunnel name to pass as `tunnelName` when you trigger a run. Also exported as `MOBILEBOOST_TUNNEL_NAME`.'
+runs:
+  using: 'node24'
+  main: 'dist/index.js'
+  # Cleanup must survive a failed or cancelled job, which is the whole reason
+  # this is a JavaScript action rather than a composite one.
+  post: 'dist/post.js'
+  post-if: 'always()'
