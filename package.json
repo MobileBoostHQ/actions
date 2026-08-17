@@ -15,14 +15,16 @@
   "scripts": {
     "build:upload": "ncc build src/upload-build/main.ts -o upload-build/dist --source-map --license licenses.txt",
     "build:run": "ncc build src/run-tests/main.ts -o run-tests/dist --source-map --license licenses.txt",
-    "build": "npm run build:upload && npm run build:run",
+    "build": "npm run build:upload && npm run build:run && npm run build:tunnel && npm run build:tunnel-post",
     "lint": "eslint src tests --ext .ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "jest",
     "e2e:local": "node scripts/local-e2e.mjs",
     "mock-upload": "node scripts/mock-upload-server.mjs",
-    "all": "npm run lint && npm run test && npm run build"
+    "all": "npm run lint && npm run test && npm run build",
+    "build:tunnel": "ncc build src/setup-local-tunnel/main.ts -o setup-local-tunnel/dist --source-map --license licenses.txt",
+    "build:tunnel-post": "ncc build src/setup-local-tunnel/post.ts -o setup-local-tunnel/dist-post --source-map --license licenses.txt && node scripts/merge-post-bundle.mjs"
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
