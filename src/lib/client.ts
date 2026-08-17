@@ -50,6 +50,13 @@ export interface TriggerAutotestRunOptions {
   tags?: string[];
   testsRepo?: string;
   usePhysicalDevice?: boolean;
+  /**
+   * A MobileBoost Local tunnel, so the app under test reaches services that
+   * only exist inside the caller's network. Only this endpoint accepts one:
+   * /tests/execute runs on a third-party device cloud where no tunnel can
+   * terminate, and refuses the field outright.
+   */
+  tunnelName?: string;
 }
 
 export interface MobileBoostClient {
@@ -192,6 +199,7 @@ export function createClient(
       if (opts.usePhysicalDevice !== undefined) {
         payload['usePhysicalDevice'] = opts.usePhysicalDevice;
       }
+      if (opts.tunnelName) payload['tunnelName'] = opts.tunnelName;
 
       const body = await withRetry('triggerAutotestRun', REQUEST_TIMEOUT_MS, () =>
         http.post(url, JSON.stringify(payload), {

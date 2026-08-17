@@ -224,6 +224,46 @@ describe('triggerAutotestRun', () => {
     expect(res.status).toBe('running');
   });
 
+  it('forwards a tunnel name so the app can reach the caller network', async () => {
+    // The whole point of the tunnel: without this field the run goes ahead on
+    // the device's ordinary egress and every request to an internal host times
+    // out, which reads as a broken test rather than a missing setting.
+    let received: Record<string, unknown> = {};
+    nock(BASE)
+      .post('/tests/run', (body: Record<string, unknown>) => {
+        received = body;
+        return true;
+      })
+      .reply(200, { run_id: 'ar2', status: 'running' });
+
+    await createClient(KEY, BASE).triggerAutotestRun({
+      organisationId: 'org1',
+      buildId: 'build1',
+      tunnelName: 'gh-123-1-e2e',
+    });
+
+    expect(received['tunnelName']).toBe('gh-123-1-e2e');
+  });
+
+  it('omits the tunnel name when the run does not use one', async () => {
+    // Omitted rather than null: a run without a tunnel must use the device's
+    // normal egress, not be handed an empty name to resolve.
+    let received: Record<string, unknown> = {};
+    nock(BASE)
+      .post('/tests/run', (body: Record<string, unknown>) => {
+        received = body;
+        return true;
+      })
+      .reply(200, { run_id: 'ar3', status: 'running' });
+
+    await createClient(KEY, BASE).triggerAutotestRun({
+      organisationId: 'org1',
+      buildId: 'build1',
+    });
+
+    expect('tunnelName' in received).toBe(false);
+  });
+
   it('omits selectors that were not provided', async () => {
     let received: Record<string, unknown> = {};
     nock(BASE)

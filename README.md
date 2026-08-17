@@ -101,6 +101,7 @@ Triggers a test run against an uploaded build and, with `async: false`, waits fo
 | `tags-query`               | no\*     | —                            | Tag query expression for advanced filtering. Not supported with `mode: autotest`.                                           |
 | `tests-repo`               | no       | org default                  | `autotest` only. Git https URL of the repo holding the pytest files.                                                        |
 | `use-physical-device`      | no       | org default                  | `autotest` only. Run on physical devices instead of simulators/emulators.                                                   |
+| `tunnel-name`              | no       | —                            | `autotest` only. MobileBoost Local tunnel the app's traffic runs through. Take it from `setup-local-tunnel`.                |
 | `iterations`               | no       | —                            | `gpt-driver` only. Number of suite runs to create (see caveat below).                                                       |
 | `launch-params`            | no       | —                            | `gpt-driver` only. JSON object of launch parameters.                                                                        |
 | `device-provider-settings` | no       | —                            | `gpt-driver` only. JSON object of device provider settings.                                                                 |
@@ -405,9 +406,15 @@ jobs:
           api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
           organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
           build-id: ${{ steps.upload.outputs.build-id }}
+          mode: autotest
           tags: smoke
-          tunnel-name: ${{ env.MOBILEBOOST_TUNNEL_NAME }}
+          tunnel-name: ${{ steps.tunnel.outputs.tunnel-name }}
 ```
+
+Tunnels require `mode: autotest` — the AI SDET path, which runs generated test
+code on MobileBoost devices. The default `gpt-driver` path runs on a
+third-party device cloud that a tunnel cannot reach, and passing `tunnel-name`
+there fails the step rather than silently running without it.
 
 Each job gets its own tunnel name, derived from the run id, attempt and job, so
 parallel and matrix jobs cannot collide. Pass `tunnel-name` only when several

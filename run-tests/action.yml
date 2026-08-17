@@ -46,6 +46,16 @@ inputs:
       Run on physical devices instead of simulators/emulators. Optional —
       defaults to your organisation setting. Only used with mode: autotest.
     required: false
+  tunnel-name:
+    description: |
+      Name of a MobileBoost Local tunnel, so the app under test can reach
+      services inside your own network. Take it from the setup-local-tunnel
+      action's output, or its MOBILEBOOST_TUNNEL_NAME variable.
+
+      Requires mode: autotest. The gpt-driver path runs on a third-party device
+      cloud that a tunnel cannot reach, and passing this there is an error
+      rather than a silent no-op.
+    required: false
 
   # Run configuration (mode: gpt-driver only)
   iterations:
