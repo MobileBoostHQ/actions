@@ -28808,18 +28808,21 @@ const client_1 = __nccwpck_require__(7072);
 const errors_1 = __nccwpck_require__(7268);
 const logger_1 = __nccwpck_require__(2415);
 const validate_1 = __nccwpck_require__(2661);
+const mode_1 = __nccwpck_require__(2118);
 const poll_1 = __nccwpck_require__(9384);
 const poll_2 = __nccwpck_require__(9384);
 const trigger_1 = __nccwpck_require__(833);
 const summary_1 = __nccwpck_require__(5941);
-const RUN_MODES = ['gpt-driver', 'autotest'];
 async function run() {
     try {
         const apiKey = core.getInput('api-key', { required: true });
         const organisationId = core.getInput('organisation-id', { required: true });
         const buildId = core.getInput('build-id', { required: true });
         const apiUrl = core.getInput('api-url') || 'https://api.mobileboost.io';
-        const mode = parseMode(core.getInput('mode'));
+        const { mode, aliasUsed } = (0, mode_1.parseMode)(core.getInput('mode'));
+        if (aliasUsed) {
+            logger_1.logger.info(`\`mode: ${aliasUsed}\` is now called \`${mode}\`; both work.`);
+        }
         // Test selection — at least one selector required.
         const testIds = (0, validate_1.parseCsv)(core.getInput('test-ids'));
         const tags = (0, validate_1.parseCsv)(core.getInput('tags'));
@@ -28827,7 +28830,7 @@ async function run() {
         if (testIds.length === 0 && tags.length === 0 && !tagsQuery) {
             throw new errors_1.InvalidInputError('Provide at least one of `test-ids`, `tags`, or `tags-query`.');
         }
-        // Fail loudly instead of silently dropping a selector the autotest endpoint
+        // Fail loudly instead of silently dropping a selector the AI SDET endpoint
         // has no equivalent for — a job that quietly ran the wrong tests is worse
         // than one that didn't start.
         // Refused rather than dropped. The gpt-driver path runs on a third-party
@@ -28837,13 +28840,13 @@ async function run() {
         // and every request to an internal host would time out with nothing
         // pointing at the cause.
         const tunnelName = core.getInput('tunnel-name').trim();
-        if (tunnelName && mode !== 'autotest') {
-            throw new errors_1.InvalidInputError('`tunnel-name` requires `mode: autotest`. MobileBoost Local tunnels are ' +
+        if (tunnelName && mode !== 'ai-sdet') {
+            throw new errors_1.InvalidInputError('`tunnel-name` requires `mode: ai-sdet`. MobileBoost Local tunnels are ' +
                 'available on the AI SDET path, which runs on MobileBoost devices; the ' +
                 'gpt-driver path runs on a third-party device cloud that a tunnel cannot reach.');
         }
-        if (mode === 'autotest' && tagsQuery) {
-            throw new errors_1.InvalidInputError('`tags-query` is not supported when `mode: autotest` — use `test-ids` or `tags`.');
+        if (mode === 'ai-sdet' && tagsQuery) {
+            throw new errors_1.InvalidInputError('`tags-query` is not supported when `mode: ai-sdet` — use `test-ids` or `tags`.');
         }
         // Run configuration (all optional).
         const iterations = optionalInt('iterations');
@@ -28859,7 +28862,7 @@ async function run() {
         // The autotest endpoint takes none of these. Say so rather than dropping
         // them silently — a run configured with launch params that never reached
         // the device looks like a product bug from the outside.
-        if (mode === 'autotest') {
+        if (mode === 'ai-sdet') {
             const ignored = [
                 ['iterations', iterations],
                 ['launch-params', launchParams],
@@ -28875,7 +28878,7 @@ async function run() {
             }
         }
         const client = (0, client_1.createClient)(apiKey, apiUrl);
-        const trigger = mode === 'autotest'
+        const trigger = mode === 'ai-sdet'
             ? await (0, trigger_1.triggerAutotestRun)(client, {
                 organisationId,
                 buildId,
@@ -28943,13 +28946,6 @@ async function run() {
         }
     }
 }
-function parseMode(raw) {
-    const value = (raw || 'gpt-driver').trim().toLowerCase();
-    if (!RUN_MODES.includes(value)) {
-        throw new errors_1.InvalidInputError(`Invalid \`mode\`: "${raw}". Expected one of: ${RUN_MODES.join(', ')}.`);
-    }
-    return value;
-}
 function optionalInt(name) {
     const raw = core.getInput(name);
     return raw ? (0, validate_1.parseInteger)(name, raw) : undefined;
@@ -28977,6 +28973,39 @@ async function writeAsyncSummary(runId, status, runUrl) {
         .write();
 }
 void run();
+
+
+/***/ }),
+
+/***/ 2118:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MODE_ALIASES = exports.RUN_MODES = void 0;
+exports.parseMode = parseMode;
+const errors_1 = __nccwpck_require__(7268);
+exports.RUN_MODES = ['gpt-driver', 'ai-sdet'];
+/**
+ * Spellings kept working after a rename.
+ *
+ * The AI SDET path was called `autotest` before it had a customer-facing name.
+ * Workflows in the wild still say that, and the action is consumed through a
+ * floating `@v1`, so removing the old spelling would break pipelines on a tag
+ * nobody chose to move.
+ */
+exports.MODE_ALIASES = { autotest: 'ai-sdet' };
+function parseMode(raw) {
+    const value = (raw || 'gpt-driver').trim().toLowerCase();
+    const aliased = exports.MODE_ALIASES[value];
+    if (aliased)
+        return { mode: aliased, aliasUsed: value };
+    if (!exports.RUN_MODES.includes(value)) {
+        throw new errors_1.InvalidInputError(`Invalid \`mode\`: "${raw}". Expected one of: ${exports.RUN_MODES.join(', ')}.`);
+    }
+    return { mode: value };
+}
 
 
 /***/ }),
@@ -29029,7 +29058,7 @@ async function pollRun(client, runId, options) {
     const start = now();
     let interval = options.intervalBaseMs ?? BASE_INTERVAL_MS;
     let consecutiveFailures = 0;
-    const getStatus = (id) => options.mode === 'autotest'
+    const getStatus = (id) => options.mode === 'ai-sdet'
         ? client.getAutotestRunStatus(id)
         : client.getRunStatus(id);
     for (;;) {
@@ -29137,7 +29166,7 @@ const APP_BASE_URL = 'https://app.mobileboost.io';
 const PLATFORM_BASE_URL = 'https://platform.mobileboost.io';
 /** Run-level dashboard (report) URL, per run mode. */
 function buildRunUrl(runId, mode = 'gpt-driver') {
-    return mode === 'autotest'
+    return mode === 'ai-sdet'
         ? `${PLATFORM_BASE_URL}/reports/${runId}`
         : `${APP_BASE_URL}/gpt-driver/reports/${runId}`;
 }

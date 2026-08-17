@@ -92,7 +92,9 @@ describe('pollRun', () => {
   it('throws TimeoutError when the budget is exceeded', async () => {
     let clock = 0;
     const client = {
-      getRunStatus: jest.fn(() => Promise.resolve(status({ status: 'running' }))),
+      getRunStatus: jest.fn(() =>
+        Promise.resolve(status({ status: 'running' })),
+      ),
     } as unknown as MobileBoostClient;
 
     await expect(
@@ -201,7 +203,7 @@ describe('pollRun mode routing', () => {
       timeoutMs: 1_000_000,
       dashboardUrl: 'http://dash',
       sleepFn: noSleep,
-      mode: 'autotest',
+      mode: 'ai-sdet',
     });
     expect(final.status).toBe('completed');
     expect(getAutotestRunStatus).toHaveBeenCalledWith('ar1');

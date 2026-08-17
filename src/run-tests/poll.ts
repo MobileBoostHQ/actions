@@ -47,7 +47,7 @@ export interface PollOptions {
    * to suite runs and answer on a different path; the response shape is the
    * same, so only the fetch differs. Defaults to the suite endpoint.
    */
-  mode?: 'gpt-driver' | 'autotest';
+  mode?: 'gpt-driver' | 'ai-sdet';
   // Injection points for deterministic tests.
   intervalBaseMs?: number;
   sleepFn?: (ms: number) => Promise<void>;
@@ -66,7 +66,7 @@ export async function pollRun(
   let interval = options.intervalBaseMs ?? BASE_INTERVAL_MS;
   let consecutiveFailures = 0;
   const getStatus = (id: string): Promise<RunStatus> =>
-    options.mode === 'autotest'
+    options.mode === 'ai-sdet'
       ? client.getAutotestRunStatus(id)
       : client.getRunStatus(id);
 

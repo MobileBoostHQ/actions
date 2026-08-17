@@ -18,9 +18,11 @@ inputs:
     description: |
       Which kind of tests to run:
         gpt-driver (default) — AI-driven suites authored in the dashboard.
-        autotest             — pytest files from your org's test repo, run on
-                               real devices with AI self-healing. Results are
-                               posted back to the PR the build came from.
+        ai-sdet              — generated test code from your org's test repo,
+                               run on MobileBoost devices with AI self-healing.
+                               Results are posted back to the PR the build came
+                               from. Accepted as `autotest` too, its former
+                               name.
     required: false
     default: 'gpt-driver'
 
@@ -32,19 +34,19 @@ inputs:
     description: 'Comma-separated list of tags. Tests matching any tag will run.'
     required: false
   tags-query:
-    description: 'Tag query expression for advanced filtering. Not supported with mode: autotest.'
+    description: 'Tag query expression for advanced filtering. Not supported with mode: ai-sdet.'
     required: false
 
-  # Autotest-only configuration (mode: autotest)
+  # AI SDET only (mode: ai-sdet)
   tests-repo:
     description: |
       Git https URL of the repo holding the pytest files. Optional — defaults to
-      the repo configured on your organisation. Only used with mode: autotest.
+      the repo configured on your organisation. Only used with mode: ai-sdet.
     required: false
   use-physical-device:
     description: |
       Run on physical devices instead of simulators/emulators. Optional —
-      defaults to your organisation setting. Only used with mode: autotest.
+      defaults to your organisation setting. Only used with mode: ai-sdet.
     required: false
   tunnel-name:
     description: |
@@ -52,7 +54,7 @@ inputs:
       services inside your own network. Take it from the setup-local-tunnel
       action's output, or its MOBILEBOOST_TUNNEL_NAME variable.
 
-      Requires mode: autotest. The gpt-driver path runs on a third-party device
+      Requires mode: ai-sdet. The gpt-driver path runs on a third-party device
       cloud that a tunnel cannot reach, and passing this there is an error
       rather than a silent no-op.
     required: false
