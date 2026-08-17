@@ -91940,6 +91940,8 @@ function createClient(apiKey, baseUrl) {
             if (opts.usePhysicalDevice !== undefined) {
                 payload['usePhysicalDevice'] = opts.usePhysicalDevice;
             }
+            if (opts.tunnelName)
+                payload['tunnelName'] = opts.tunnelName;
             const body = await withRetry('triggerAutotestRun', REQUEST_TIMEOUT_MS, () => http.post(url, JSON.stringify(payload), {
                 ...authHeader,
                 'Content-Type': 'application/json',

@@ -36,6 +36,21 @@ async function run(): Promise<void> {
     // Fail loudly instead of silently dropping a selector the autotest endpoint
     // has no equivalent for — a job that quietly ran the wrong tests is worse
     // than one that didn't start.
+    // Refused rather than dropped. The gpt-driver path runs on a third-party
+    // device cloud, so there is no host of ours for a tunnel to terminate on
+    // and the API rejects the field anyway. Silently ignoring it would leave
+    // the app reaching the public internet while the workflow says otherwise,
+    // and every request to an internal host would time out with nothing
+    // pointing at the cause.
+    const tunnelName = core.getInput('tunnel-name').trim();
+    if (tunnelName && mode !== 'autotest') {
+      throw new InvalidInputError(
+        '`tunnel-name` requires `mode: autotest`. MobileBoost Local tunnels are ' +
+          'available on the AI SDET path, which runs on MobileBoost devices; the ' +
+          'gpt-driver path runs on a third-party device cloud that a tunnel cannot reach.',
+      );
+    }
+
     if (mode === 'autotest' && tagsQuery) {
       throw new InvalidInputError(
         '`tags-query` is not supported when `mode: autotest` — use `test-ids` or `tags`.',
@@ -97,6 +112,7 @@ async function run(): Promise<void> {
             tags,
             testsRepo: core.getInput('tests-repo') || undefined,
             usePhysicalDevice: optionalBoolean('use-physical-device'),
+            tunnelName: tunnelName || undefined,
           })
         : await triggerRun(client, {
             organisationId,
