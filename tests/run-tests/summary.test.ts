@@ -16,7 +16,7 @@ describe('buildRunUrl modes', () => {
   });
 
   it('uses the platform report host for autotest runs', () => {
-    expect(buildRunUrl('r1', 'autotest')).toBe(
+    expect(buildRunUrl('r1', 'ai-sdet')).toBe(
       'https://platform.mobileboost.io/reports/r1',
     );
   });

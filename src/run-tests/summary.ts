@@ -8,11 +8,14 @@ const APP_BASE_URL = 'https://app.mobileboost.io';
 // dashboard — different product surface, different host.
 const PLATFORM_BASE_URL = 'https://platform.mobileboost.io';
 
-export type RunMode = 'gpt-driver' | 'autotest';
+export type RunMode = 'gpt-driver' | 'ai-sdet';
 
 /** Run-level dashboard (report) URL, per run mode. */
-export function buildRunUrl(runId: string, mode: RunMode = 'gpt-driver'): string {
-  return mode === 'autotest'
+export function buildRunUrl(
+  runId: string,
+  mode: RunMode = 'gpt-driver',
+): string {
+  return mode === 'ai-sdet'
     ? `${PLATFORM_BASE_URL}/reports/${runId}`
     : `${APP_BASE_URL}/gpt-driver/reports/${runId}`;
 }

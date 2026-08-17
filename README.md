@@ -90,28 +90,28 @@ Triggers a test run against an uploaded build and, with `async: false`, waits fo
 
 ### Inputs
 
-| Input                      | Required | Default                      | Description                                                                                                                 |
-| -------------------------- | -------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `api-key`                  | yes      | —                            | MobileBoost API key. Use a secret.                                                                                          |
-| `organisation-id`          | yes      | —                            | Your MobileBoost organisation ID.                                                                                           |
-| `build-id`                 | yes      | —                            | Build ID from `upload-build`.                                                                                               |
-| `mode`                     | no       | `gpt-driver`                 | `gpt-driver` for AI suites authored in the dashboard, `autotest` for pytest files from your test repo. See [Modes](#modes). |
-| `test-ids`                 | no\*     | —                            | Comma-separated test IDs.                                                                                                   |
-| `tags`                     | no\*     | —                            | Comma-separated tags; tests matching **any** tag run.                                                                       |
-| `tags-query`               | no\*     | —                            | Tag query expression for advanced filtering. Not supported with `mode: autotest`.                                           |
-| `tests-repo`               | no       | org default                  | `autotest` only. Git https URL of the repo holding the pytest files.                                                        |
-| `use-physical-device`      | no       | org default                  | `autotest` only. Run on physical devices instead of simulators/emulators.                                                   |
-| `tunnel-name`              | no       | —                            | `autotest` only. MobileBoost Local tunnel the app's traffic runs through. Take it from `setup-local-tunnel`.                |
-| `iterations`               | no       | —                            | `gpt-driver` only. Number of suite runs to create (see caveat below).                                                       |
-| `launch-params`            | no       | —                            | `gpt-driver` only. JSON object of launch parameters.                                                                        |
-| `device-provider-settings` | no       | —                            | `gpt-driver` only. JSON object of device provider settings.                                                                 |
-| `test-inputs`              | no       | —                            | `gpt-driver` only. JSON object of test inputs.                                                                              |
-| `device-configs`           | no       | —                            | `gpt-driver` only. JSON **array** of device configurations.                                                                 |
-| `metadata`                 | no       | —                            | `gpt-driver` only. JSON object attached to the run.                                                                         |
-| `async`                    | no       | `true`                       | If `true` (the default), return immediately after triggering. Set `false` to poll until completion.                         |
-| `timeout-minutes`          | no       | `180`                        | Max time to wait in sync mode.                                                                                              |
-| `fail-on-test-failure`     | no       | `true`                       | Fail the action when any test fails or is blocked.                                                                          |
-| `api-url`                  | no       | `https://api.mobileboost.io` | Override the API base URL.                                                                                                  |
+| Input                      | Required | Default                      | Description                                                                                                                       |
+| -------------------------- | -------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `api-key`                  | yes      | —                            | MobileBoost API key. Use a secret.                                                                                                |
+| `organisation-id`          | yes      | —                            | Your MobileBoost organisation ID.                                                                                                 |
+| `build-id`                 | yes      | —                            | Build ID from `upload-build`.                                                                                                     |
+| `mode`                     | no       | `gpt-driver`                 | `gpt-driver` for AI suites authored in the dashboard, `ai-sdet` for generated test code from your test repo. See [Modes](#modes). |
+| `test-ids`                 | no\*     | —                            | Comma-separated test IDs.                                                                                                         |
+| `tags`                     | no\*     | —                            | Comma-separated tags; tests matching **any** tag run.                                                                             |
+| `tags-query`               | no\*     | —                            | Tag query expression for advanced filtering. Not supported with `mode: ai-sdet`.                                                  |
+| `tests-repo`               | no       | org default                  | `ai-sdet` only. Git https URL of the repo holding the pytest files.                                                               |
+| `use-physical-device`      | no       | org default                  | `ai-sdet` only. Run on physical devices instead of simulators/emulators.                                                          |
+| `tunnel-name`              | no       | —                            | `ai-sdet` only. MobileBoost Local tunnel the app's traffic runs through. Take it from `setup-local-tunnel`.                       |
+| `iterations`               | no       | —                            | `gpt-driver` only. Number of suite runs to create (see caveat below).                                                             |
+| `launch-params`            | no       | —                            | `gpt-driver` only. JSON object of launch parameters.                                                                              |
+| `device-provider-settings` | no       | —                            | `gpt-driver` only. JSON object of device provider settings.                                                                       |
+| `test-inputs`              | no       | —                            | `gpt-driver` only. JSON object of test inputs.                                                                                    |
+| `device-configs`           | no       | —                            | `gpt-driver` only. JSON **array** of device configurations.                                                                       |
+| `metadata`                 | no       | —                            | `gpt-driver` only. JSON object attached to the run.                                                                               |
+| `async`                    | no       | `true`                       | If `true` (the default), return immediately after triggering. Set `false` to poll until completion.                               |
+| `timeout-minutes`          | no       | `180`                        | Max time to wait in sync mode.                                                                                                    |
+| `fail-on-test-failure`     | no       | `true`                       | Fail the action when any test fails or is blocked.                                                                                |
+| `api-url`                  | no       | `https://api.mobileboost.io` | Override the API base URL.                                                                                                        |
 
 \* At least one of `test-ids`, `tags`, or `tags-query` is required.
 
@@ -119,9 +119,11 @@ Triggers a test run against an uploaded build and, with `async: false`, waits fo
 
 **`gpt-driver` (default)** — the AI-driven suites you author in the dashboard.
 
-**`autotest`** — pytest files from your organisation's test repo, executed on
+**`ai-sdet`** — generated test code from your organisation's test repo, executed on
 real devices, with an AI agent that self-heals broken selectors and flags
 changes it judges product-impacting rather than papering over them.
+
+Previously called `autotest`. That spelling still works, so existing workflows keep running unchanged.
 
 Autotest runs post their results **straight back to the pull request** the build
 came from. That works because `upload-build` stamps every CI upload with the
@@ -197,7 +199,7 @@ test the agent auto-healed.
     api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
     organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
     build-id: ${{ steps.upload.outputs.build-id }}
-    mode: autotest
+    mode: ai-sdet
     tags: smoke
     async: false
 ```
@@ -406,12 +408,12 @@ jobs:
           api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
           organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
           build-id: ${{ steps.upload.outputs.build-id }}
-          mode: autotest
+          mode: ai-sdet
           tags: smoke
           tunnel-name: ${{ steps.tunnel.outputs.tunnel-name }}
 ```
 
-Tunnels require `mode: autotest` — the AI SDET path, which runs generated test
+Tunnels require `mode: ai-sdet`, which runs generated test
 code on MobileBoost devices. The default `gpt-driver` path runs on a
 third-party device cloud that a tunnel cannot reach, and passing `tunnel-name`
 there fails the step rather than silently running without it.

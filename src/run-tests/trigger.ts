@@ -38,6 +38,8 @@ export async function triggerAutotestRun(
   opts: TriggerAutotestRunOptions,
 ): Promise<TriggerResult> {
   const result = await client.triggerAutotestRun(opts);
-  logger.info(`Triggered autotest run ${result.runId} (status: ${result.status})`);
+  logger.info(
+    `Triggered autotest run ${result.runId} (status: ${result.status})`,
+  );
   return result;
 }

@@ -9,12 +9,11 @@ import {
   parseJsonArray,
   parseJsonObject,
 } from '../lib/validate';
+import { parseMode } from './mode';
 import { isCancelled } from './poll';
 import { pollRun } from './poll';
 import { triggerAutotestRun, triggerRun } from './trigger';
-import { buildRunUrl, RunMode, writeRunSummary } from './summary';
-
-const RUN_MODES: RunMode[] = ['gpt-driver', 'autotest'];
+import { buildRunUrl, writeRunSummary } from './summary';
 
 async function run(): Promise<void> {
   try {
@@ -22,7 +21,12 @@ async function run(): Promise<void> {
     const organisationId = core.getInput('organisation-id', { required: true });
     const buildId = core.getInput('build-id', { required: true });
     const apiUrl = core.getInput('api-url') || 'https://api.mobileboost.io';
-    const mode = parseMode(core.getInput('mode'));
+    const { mode, aliasUsed } = parseMode(core.getInput('mode'));
+    if (aliasUsed) {
+      logger.info(
+        `\`mode: ${aliasUsed}\` is now called \`${mode}\`; both work.`,
+      );
+    }
 
     // Test selection — at least one selector required.
     const testIds = parseCsv(core.getInput('test-ids'));
@@ -33,7 +37,7 @@ async function run(): Promise<void> {
         'Provide at least one of `test-ids`, `tags`, or `tags-query`.',
       );
     }
-    // Fail loudly instead of silently dropping a selector the autotest endpoint
+    // Fail loudly instead of silently dropping a selector the AI SDET endpoint
     // has no equivalent for — a job that quietly ran the wrong tests is worse
     // than one that didn't start.
     // Refused rather than dropped. The gpt-driver path runs on a third-party
@@ -43,17 +47,17 @@ async function run(): Promise<void> {
     // and every request to an internal host would time out with nothing
     // pointing at the cause.
     const tunnelName = core.getInput('tunnel-name').trim();
-    if (tunnelName && mode !== 'autotest') {
+    if (tunnelName && mode !== 'ai-sdet') {
       throw new InvalidInputError(
-        '`tunnel-name` requires `mode: autotest`. MobileBoost Local tunnels are ' +
+        '`tunnel-name` requires `mode: ai-sdet`. MobileBoost Local tunnels are ' +
           'available on the AI SDET path, which runs on MobileBoost devices; the ' +
           'gpt-driver path runs on a third-party device cloud that a tunnel cannot reach.',
       );
     }
 
-    if (mode === 'autotest' && tagsQuery) {
+    if (mode === 'ai-sdet' && tagsQuery) {
       throw new InvalidInputError(
-        '`tags-query` is not supported when `mode: autotest` — use `test-ids` or `tags`.',
+        '`tags-query` is not supported when `mode: ai-sdet` — use `test-ids` or `tags`.',
       );
     }
 
@@ -81,7 +85,7 @@ async function run(): Promise<void> {
     // The autotest endpoint takes none of these. Say so rather than dropping
     // them silently — a run configured with launch params that never reached
     // the device looks like a product bug from the outside.
-    if (mode === 'autotest') {
+    if (mode === 'ai-sdet') {
       const ignored = (
         [
           ['iterations', iterations],
@@ -104,7 +108,7 @@ async function run(): Promise<void> {
     const client = createClient(apiKey, apiUrl);
 
     const trigger =
-      mode === 'autotest'
+      mode === 'ai-sdet'
         ? await triggerAutotestRun(client, {
             organisationId,
             buildId,
@@ -178,16 +182,6 @@ async function run(): Promise<void> {
       core.setFailed(`Unexpected error: ${String(err)}`);
     }
   }
-}
-
-function parseMode(raw: string): RunMode {
-  const value = (raw || 'gpt-driver').trim().toLowerCase();
-  if (!RUN_MODES.includes(value as RunMode)) {
-    throw new InvalidInputError(
-      `Invalid \`mode\`: "${raw}". Expected one of: ${RUN_MODES.join(', ')}.`,
-    );
-  }
-  return value as RunMode;
 }
 
 function optionalInt(name: string): number | undefined {
