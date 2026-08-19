@@ -426,7 +426,7 @@ jobs must deliberately share one.
 
 | Input            | Required | Description                                                                                                                         |
 | ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `api-key`        | Yes      | MobileBoost API key. A key scoped to `tunnel:connect` is enough.                                                                    |
+| `api-key`        | Yes      | MobileBoost API key. Read-only keys cannot open tunnels.                                                                            |
 | `only-hosts`     | No       | Comma-separated hosts the tunnel may reach. Strongly recommended: anything not listed is refused on the runner rather than carried. |
 | `exclude-hosts`  | No       | Hosts it may never reach. Wins over `only-hosts`.                                                                                   |
 | `tunnel-name`    | No       | Override the generated per-job name.                                                                                                |

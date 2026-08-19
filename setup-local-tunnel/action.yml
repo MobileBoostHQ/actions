@@ -6,7 +6,7 @@ branding:
   color: 'purple'
 inputs:
   api-key:
-    description: 'MobileBoost API key. Store as a GitHub secret. A key scoped to `tunnel:connect` is enough.'
+    description: 'MobileBoost API key. Store as a GitHub secret. Read-only keys cannot open tunnels.'
     required: true
   only-hosts:
     description: |
