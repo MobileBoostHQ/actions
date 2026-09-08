@@ -3,7 +3,7 @@
 Run your [MobileBoost](https://mobileboost.io) mobile UI tests straight from CI.
 This repo ships three composable actions:
 
-- **`upload-build`** — upload an iOS/Android build (`.zip` or `.apk`) and get back a `build-id`.
+- **`upload-build`** — upload an iOS/Android build (`.apk`, `.ipa`, `.zip` or `.tar.gz`) and get back a `build-id`.
 - **`run-tests`** — trigger a test run against an uploaded build, optionally wait for it, and surface pass/fail.
 - **`setup-local-tunnel`** — open a MobileBoost Local tunnel so the app under test can reach services inside your network, and close it again however the job ends.
 
@@ -60,13 +60,13 @@ Uploads a build artifact and emits its `build-id` and dashboard link.
 
 ### Inputs
 
-| Input             | Required | Default                      | Description                                                                                     |
-| ----------------- | -------- | ---------------------------- | ----------------------------------------------------------------------------------------------- |
-| `api-key`         | yes      | —                            | MobileBoost API key (`mb_live_…`). Use a secret.                                                |
-| `organisation-id` | yes      | —                            | Your MobileBoost organisation ID.                                                               |
-| `build-path`      | yes      | —                            | Path to a `.zip`/`.apk` file, a directory (zipped automatically), or a glob (first match used). |
-| `metadata`        | no       | —                            | Metadata as a JSON object string (the API parses it as JSON).                                   |
-| `api-url`         | no       | `https://api.mobileboost.io` | Override the API base URL.                                                                      |
+| Input             | Required | Default                      | Description                                                                                                      |
+| ----------------- | -------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `api-key`         | yes      | —                            | MobileBoost API key (`mb_live_…`). Use a secret.                                                                 |
+| `organisation-id` | yes      | —                            | Your MobileBoost organisation ID.                                                                                |
+| `build-path`      | yes      | —                            | Path to a `.apk`/`.ipa`/`.zip`/`.tar.gz` file, a directory (zipped automatically), or a glob (first match used). |
+| `metadata`        | no       | —                            | Metadata as a JSON object string (the API parses it as JSON).                                                    |
+| `api-url`         | no       | `https://api.mobileboost.io` | Override the API base URL.                                                                                       |
 
 ### Outputs
 
@@ -77,7 +77,7 @@ Uploads a build artifact and emits its `build-id` and dashboard link.
 
 ### Notes
 
-- **Accepted files:** `.zip` and `.apk` only in v1.
+- **Accepted files:** `.apk` for Android; `.ipa` for physical iOS devices; `.zip`/`.tar.gz` of the simulator `.app` bundle for iOS simulators. `.tgz` is not accepted (the API takes `.tar.gz`).
 - **Directories** are zipped (deflate level 6) before upload.
 - **Globs** matching more than one file log a warning and use the first sorted match.
 - Builds **above 500 MB** log a warning (the upload still proceeds).
@@ -367,7 +367,7 @@ Best for **validating a build before it lands** on the default branch.
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `Invalid API key (401)`                   | The `api-key` secret is missing/wrong, or not an `mb_live_…` key.                                    |
 | `No file or directory matched build-path` | The glob/path didn't resolve on the runner. Check the working directory and that the build step ran. |
-| `Unsupported build file`                  | Only `.zip` and `.apk` are accepted in v1.                                                           |
+| `Unsupported build file`                  | Only `.apk`, `.ipa`, `.zip` and `.tar.gz` are accepted.                                              |
 | Run `did not finish within the timeout`   | Increase `timeout-minutes`, or use `async: true`. The run keeps going on MobileBoost.                |
 | Job fails with `N failed, M blocked`      | Tests failed/were blocked. Open the linked dashboard run to inspect recordings.                      |
 

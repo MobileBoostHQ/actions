@@ -1,5 +1,5 @@
 name: 'MobileBoost — Upload Build'
-description: 'Upload a mobile app build (.zip or .apk) to MobileBoost.'
+description: 'Upload a mobile app build (.apk, .ipa, .zip or .tar.gz) to MobileBoost.'
 author: 'MobileBoost'
 branding:
   icon: 'upload-cloud'
@@ -13,8 +13,8 @@ inputs:
     required: true
   build-path:
     description: |
-      Path to the build file (.zip or .apk), a directory (will be zipped),
-      or a glob (first match used).
+      Path to the build file (.apk, .ipa, .zip or .tar.gz), a directory
+      (will be zipped), or a glob (first match used).
     required: true
   metadata:
     description: 'Optional metadata as a JSON object string (the API parses it as JSON).'
