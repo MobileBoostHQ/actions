@@ -6,10 +6,12 @@ import archiver from 'archiver';
 import { InvalidInputError } from './errors';
 import { logger } from './logger';
 
-// v1 scope: the action accepts only .zip and .apk (see README non-goals).
-// The backend additionally accepts .ipa/.tar.gz, but we keep the action's
-// surface deliberately narrow until those are formally supported.
-const ALLOWED_EXTENSIONS = ['.zip', '.apk'];
+// Every extension POST /uploadBuild takes, so `build-path` can name the file
+// the build step actually produced. .ipa was left out while it was only
+// informally supported, which made an iOS build for a physical device - which
+// has to be an .ipa - the one thing this action refused, and pushed people to
+// zip it instead. Note .tar.gz rather than .tgz: the API rejects .tgz.
+const ALLOWED_EXTENSIONS = ['.zip', '.apk', '.ipa', '.tar.gz'];
 
 export interface ResolvedBuild {
   /** Absolute path to the file that should be uploaded. */

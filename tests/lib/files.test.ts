@@ -35,10 +35,47 @@ describe('resolveBuildPath', () => {
     expect(res.filePath).toBe(p);
   });
 
+  it('accepts an .ipa file', async () => {
+    // An iOS build for a physical device has to be an .ipa, and this action
+    // used to be the one place that refused it - so people zipped it instead.
+    const p = touch('Kleinanzeigen-2026.38.0-sandbox.ipa');
+    const res = await resolveBuildPath(p);
+    expect(res.filePath).toBe(p);
+    expect(res.zippedFromDir).toBe(false);
+  });
+
+  it('accepts an .ipa file (case-insensitive)', async () => {
+    const p = touch('App.IPA');
+    const res = await resolveBuildPath(p);
+    expect(res.filePath).toBe(p);
+  });
+
+  it('accepts a .tar.gz file', async () => {
+    const p = touch('sim-build.tar.gz');
+    const res = await resolveBuildPath(p);
+    expect(res.filePath).toBe(p);
+  });
+
+  it('rejects .tgz, which the API does not take', async () => {
+    // The API matches on the literal '.tar.gz', so accepting .tgz here would
+    // only move the rejection to the upload, where it is far less obvious.
+    const p = touch('sim-build.tgz');
+    await expect(resolveBuildPath(p)).rejects.toThrow(InvalidInputError);
+  });
+
   it('rejects an unsupported extension', async () => {
     const p = touch('app.txt');
     await expect(resolveBuildPath(p)).rejects.toThrow(InvalidInputError);
     await expect(resolveBuildPath(p)).rejects.toThrow(/Expected one of/);
+  });
+
+  it('names every accepted extension when it rejects one', async () => {
+    // The message is the whole answer a user gets, so it has to be current:
+    // it used to say ".zip, .apk" and send iOS users off to zip their .ipa.
+    const p = touch('app.txt');
+    await expect(resolveBuildPath(p)).rejects.toThrow(
+      /\.zip, \.apk, \.ipa, \.tar\.gz/,
+    );
   });
 
   it('rejects empty input', async () => {
