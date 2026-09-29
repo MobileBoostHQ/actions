@@ -155,12 +155,20 @@ export function createClient(
       );
 
       const json = parseJson(body, url);
+      // A QA Studio organisation answers with one suite id per iteration. A
+      // Platform organisation runs the same request as an autotest run and
+      // answers with a single run id instead, which GET /runs/{id} polls just
+      // the same.
       const ids = asStringArray(json['test_suite_ids']);
+      if (ids.length === 0) {
+        const runId = readRunId(json);
+        if (runId) ids.push(runId);
+      }
       const first = ids[0];
       if (!first) {
         throw new ApiError(
           200,
-          `Trigger returned no test_suite_ids — nothing to track. Response: ${truncate(body)}`,
+          `Trigger returned no test_suite_ids, runId or run_id - nothing to track. Response: ${truncate(body)}`,
           body,
         );
       }
@@ -212,11 +220,11 @@ export function createClient(
       const json = parseJson(body, url);
       // The background-test server answers with a single run id — there is no
       // iterations concept here, so allRunIds is always that one id.
-      const runId = asString(json['run_id']);
+      const runId = readRunId(json);
       if (!runId) {
         throw new ApiError(
           200,
-          `Autotest trigger returned no run_id — nothing to track. Response: ${truncate(body)}`,
+          `Autotest trigger returned no runId or run_id - nothing to track. Response: ${truncate(body)}`,
           body,
         );
       }
@@ -396,6 +404,15 @@ function asString(value: unknown): string {
     return String(value);
   }
   return '';
+}
+
+/**
+ * The id of an autotest run as its trigger answers it. `runId` is the API's
+ * name for it; `run_id` is what it answered before, and what an older backend
+ * still answers.
+ */
+function readRunId(json: Record<string, unknown>): string {
+  return asString(json['runId']) || asString(json['run_id']);
 }
 
 function asNumber(value: unknown): number {

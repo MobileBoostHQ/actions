@@ -10,7 +10,10 @@ export interface UploadResult {
 }
 
 export interface TriggerResult {
-  /** The run id the action tracks (== `test_suite_ids[0]`). */
+  /**
+   * The run id the action tracks: `test_suite_ids[0]` for a QA Studio suite,
+   * or the autotest run id (`runId`, formerly `run_id`) for a Platform run.
+   */
   runId: string;
   /** All ids returned by the API (one per `iterations`). */
   allRunIds: string[];
