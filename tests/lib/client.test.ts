@@ -105,6 +105,7 @@ describe('triggerRun', () => {
     });
     expect(res.runId).toBe('s1');
     expect(res.allRunIds).toEqual(['s1']);
+    expect(res.backend).toBe('qa-studio');
     expect(res.status).toBe('running');
   });
 
@@ -120,6 +121,7 @@ describe('triggerRun', () => {
     });
     expect(res.runId).toBe('s1');
     expect(res.allRunIds).toEqual(['s1', 's2']);
+    expect(res.backend).toBe('qa-studio');
   });
 
   it('fails loudly when test_suite_ids is empty', async () => {
@@ -133,7 +135,44 @@ describe('triggerRun', () => {
         buildId: 'b',
         tags: ['x'],
       }),
-    ).rejects.toThrow(/no test_suite_ids/);
+    ).rejects.toThrow(/no test_suite_ids, runId or run_id/);
+  });
+
+  // A Platform organisation runs /tests/execute as an autotest run, which
+  // answers with one run id rather than suite ids.
+  it.each([
+    ['runId', { runId: 'pr1' }],
+    ['run_id', { run_id: 'pr1' }],
+    ['runId and run_id', { runId: 'pr1', run_id: 'pr1' }],
+  ])('tracks a Platform run id answered as %s', async (_label, ids) => {
+    nock(BASE)
+      .post('/tests/execute')
+      .reply(200, { message: 'Autotest run created', status: 'running', ...ids });
+
+    const res = await createClient(KEY, BASE).triggerRun({
+      organisationId: 'o',
+      buildId: 'b',
+      tags: ['x'],
+    });
+    expect(res.runId).toBe('pr1');
+    expect(res.allRunIds).toEqual(['pr1']);
+    expect(res.backend).toBe('platform');
+    expect(res.status).toBe('running');
+  });
+
+  it('prefers suite ids when a response carries both', async () => {
+    nock(BASE)
+      .post('/tests/execute')
+      .reply(200, { test_suite_ids: ['s1'], runId: 'pr1', status: 'running' });
+
+    const res = await createClient(KEY, BASE).triggerRun({
+      organisationId: 'o',
+      buildId: 'b',
+      tags: ['x'],
+    });
+    expect(res.runId).toBe('s1');
+    expect(res.allRunIds).toEqual(['s1']);
+    expect(res.backend).toBe('qa-studio');
   });
 });
 
@@ -221,6 +260,7 @@ describe('triggerAutotestRun', () => {
 
     expect(res.runId).toBe('ar1');
     expect(res.allRunIds).toEqual(['ar1']);
+    expect(res.backend).toBe('platform');
     expect(res.status).toBe('running');
   });
 
@@ -284,15 +324,34 @@ describe('triggerAutotestRun', () => {
     expect(received['usePhysicalDevice']).toBeUndefined();
   });
 
-  it('fails loudly when run_id is missing', async () => {
+  it.each([
+    ['runId', { runId: 'ar4' }],
+    ['run_id', { run_id: 'ar4' }],
+    ['runId and run_id', { runId: 'ar4', run_id: 'ar4' }],
+  ])('reads the run id answered as %s', async (_label, ids) => {
+    nock(BASE)
+      .post('/tests/run')
+      .reply(200, { message: 'Autotest run created', status: 'running', ...ids });
+
+    const res = await createClient(KEY, BASE).triggerAutotestRun({
+      organisationId: 'o',
+      buildId: 'b',
+      tags: ['x'],
+    });
+    expect(res.runId).toBe('ar4');
+    expect(res.allRunIds).toEqual(['ar4']);
+    expect(res.backend).toBe('platform');
+  });
+
+  it('fails loudly when neither runId nor run_id is present', async () => {
     nock(BASE).post('/tests/run').reply(200, { message: 'ok' });
-    await expect(
-      createClient(KEY, BASE).triggerAutotestRun({
-        organisationId: 'o',
-        buildId: 'b',
-        tags: ['x'],
-      }),
-    ).rejects.toBeInstanceOf(ApiError);
+    const call = createClient(KEY, BASE).triggerAutotestRun({
+      organisationId: 'o',
+      buildId: 'b',
+      tags: ['x'],
+    });
+    await expect(call).rejects.toBeInstanceOf(ApiError);
+    await expect(call).rejects.toThrow(/no runId or run_id/);
   });
 });
 

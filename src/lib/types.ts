@@ -9,9 +9,21 @@ export interface UploadResult {
   appLink: string;
 }
 
+/**
+ * Which product the organisation's run lives in, decided by the answer the
+ * trigger call got rather than by the `mode` input: a Platform organisation
+ * runs the default mode's /tests/execute as an autotest run too.
+ */
+export type RunBackend = 'qa-studio' | 'platform';
+
 export interface TriggerResult {
-  /** The run id the action tracks (== `test_suite_ids[0]`). */
+  /**
+   * The run id the action tracks: `test_suite_ids[0]` for a QA Studio suite,
+   * or the autotest run id (`runId`, formerly `run_id`) for a Platform run.
+   */
   runId: string;
+  /** Where the run's report is: the QA Studio dashboard or the Platform app. */
+  backend: RunBackend;
   /** All ids returned by the API (one per `iterations`). */
   allRunIds: string[];
   /** Wire status of the trigger call: `queued` or `running`. */

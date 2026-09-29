@@ -133,7 +133,7 @@ async function run(): Promise<void> {
           });
     core.setOutput('run-id', trigger.runId);
 
-    const runUrl = buildRunUrl(trigger.runId, mode);
+    const runUrl = buildRunUrl(trigger.runId, trigger.backend);
 
     if (asyncMode) {
       logger.info('async=true — returning immediately after triggering.');

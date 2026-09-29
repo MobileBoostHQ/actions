@@ -28358,13 +28358,24 @@ function createClient(apiKey, baseUrl) {
                 Accept: 'application/json',
             }));
             const json = parseJson(body, url);
+            // A QA Studio organisation answers with one suite id per iteration. A
+            // Platform organisation runs the same request as an autotest run and
+            // answers with a single run id instead, which GET /runs/{id} polls just
+            // the same.
             const ids = asStringArray(json['test_suite_ids']);
+            const backend = ids.length > 0 ? 'qa-studio' : 'platform';
+            if (ids.length === 0) {
+                const runId = readRunId(json);
+                if (runId)
+                    ids.push(runId);
+            }
             const first = ids[0];
             if (!first) {
-                throw new errors_1.ApiError(200, `Trigger returned no test_suite_ids — nothing to track. Response: ${truncate(body)}`, body);
+                throw new errors_1.ApiError(200, `Trigger returned no test_suite_ids, runId or run_id - nothing to track. Response: ${truncate(body)}`, body);
             }
             return {
                 runId: first,
+                backend,
                 allRunIds: ids,
                 status: asString(json['status']) || 'unknown',
                 message: asString(json['message']),
@@ -28407,12 +28418,13 @@ function createClient(apiKey, baseUrl) {
             const json = parseJson(body, url);
             // The background-test server answers with a single run id — there is no
             // iterations concept here, so allRunIds is always that one id.
-            const runId = asString(json['run_id']);
+            const runId = readRunId(json);
             if (!runId) {
-                throw new errors_1.ApiError(200, `Autotest trigger returned no run_id — nothing to track. Response: ${truncate(body)}`, body);
+                throw new errors_1.ApiError(200, `Autotest trigger returned no runId or run_id - nothing to track. Response: ${truncate(body)}`, body);
             }
             return {
                 runId,
+                backend: 'platform',
                 allRunIds: [runId],
                 status: asString(json['status']) || 'unknown',
                 message: asString(json['message']),
@@ -28523,6 +28535,14 @@ function asString(value) {
         return String(value);
     }
     return '';
+}
+/**
+ * The id of an autotest run as its trigger answers it. `runId` is the API's
+ * name for it; `run_id` is what it answered before, and what an older backend
+ * still answers.
+ */
+function readRunId(json) {
+    return asString(json['runId']) || asString(json['run_id']);
 }
 function asNumber(value) {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -28902,7 +28922,7 @@ async function run() {
                 metadata,
             });
         core.setOutput('run-id', trigger.runId);
-        const runUrl = (0, summary_1.buildRunUrl)(trigger.runId, mode);
+        const runUrl = (0, summary_1.buildRunUrl)(trigger.runId, trigger.backend);
         if (asyncMode) {
             logger_1.logger.info('async=true — returning immediately after triggering.');
             await writeAsyncSummary(trigger.runId, trigger.status, runUrl);
@@ -29164,9 +29184,13 @@ const APP_BASE_URL = 'https://app.mobileboost.io';
 // Autotest runs are reported in the newer platform app, not the gpt-driver
 // dashboard — different product surface, different host.
 const PLATFORM_BASE_URL = 'https://platform.mobileboost.io';
-/** Run-level dashboard (report) URL, per run mode. */
-function buildRunUrl(runId, mode = 'gpt-driver') {
-    return mode === 'ai-sdet'
+/**
+ * Run-level dashboard (report) URL, per backend that answered the trigger.
+ * Not per mode: the default mode's run is a Platform run on a Platform
+ * organisation, and its report is in the Platform app like any other.
+ */
+function buildRunUrl(runId, backend = 'qa-studio') {
+    return backend === 'platform'
         ? `${PLATFORM_BASE_URL}/reports/${runId}`
         : `${APP_BASE_URL}/gpt-driver/reports/${runId}`;
 }
