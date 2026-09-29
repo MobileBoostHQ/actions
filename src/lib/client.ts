@@ -160,6 +160,7 @@ export function createClient(
       // answers with a single run id instead, which GET /runs/{id} polls just
       // the same.
       const ids = asStringArray(json['test_suite_ids']);
+      const backend = ids.length > 0 ? 'qa-studio' : 'platform';
       if (ids.length === 0) {
         const runId = readRunId(json);
         if (runId) ids.push(runId);
@@ -174,6 +175,7 @@ export function createClient(
       }
       return {
         runId: first,
+        backend,
         allRunIds: ids,
         status: asString(json['status']) || 'unknown',
         message: asString(json['message']),
@@ -230,6 +232,7 @@ export function createClient(
       }
       return {
         runId,
+        backend: 'platform',
         allRunIds: [runId],
         status: asString(json['status']) || 'unknown',
         message: asString(json['message']),

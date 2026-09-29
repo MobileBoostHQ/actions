@@ -105,6 +105,7 @@ describe('triggerRun', () => {
     });
     expect(res.runId).toBe('s1');
     expect(res.allRunIds).toEqual(['s1']);
+    expect(res.backend).toBe('qa-studio');
     expect(res.status).toBe('running');
   });
 
@@ -120,6 +121,7 @@ describe('triggerRun', () => {
     });
     expect(res.runId).toBe('s1');
     expect(res.allRunIds).toEqual(['s1', 's2']);
+    expect(res.backend).toBe('qa-studio');
   });
 
   it('fails loudly when test_suite_ids is empty', async () => {
@@ -154,6 +156,7 @@ describe('triggerRun', () => {
     });
     expect(res.runId).toBe('pr1');
     expect(res.allRunIds).toEqual(['pr1']);
+    expect(res.backend).toBe('platform');
     expect(res.status).toBe('running');
   });
 
@@ -169,6 +172,7 @@ describe('triggerRun', () => {
     });
     expect(res.runId).toBe('s1');
     expect(res.allRunIds).toEqual(['s1']);
+    expect(res.backend).toBe('qa-studio');
   });
 });
 
@@ -256,6 +260,7 @@ describe('triggerAutotestRun', () => {
 
     expect(res.runId).toBe('ar1');
     expect(res.allRunIds).toEqual(['ar1']);
+    expect(res.backend).toBe('platform');
     expect(res.status).toBe('running');
   });
 
@@ -335,6 +340,7 @@ describe('triggerAutotestRun', () => {
     });
     expect(res.runId).toBe('ar4');
     expect(res.allRunIds).toEqual(['ar4']);
+    expect(res.backend).toBe('platform');
   });
 
   it('fails loudly when neither runId nor run_id is present', async () => {

@@ -1,7 +1,7 @@
 import * as core from '@actions/core';
 import { SummaryTableRow } from '@actions/core/lib/summary';
 import { formatDuration } from '../lib/format';
-import { RunStatus, TestResult } from '../lib/types';
+import { RunBackend, RunStatus, TestResult } from '../lib/types';
 
 const APP_BASE_URL = 'https://app.mobileboost.io';
 // Autotest runs are reported in the newer platform app, not the gpt-driver
@@ -10,12 +10,16 @@ const PLATFORM_BASE_URL = 'https://platform.mobileboost.io';
 
 export type RunMode = 'gpt-driver' | 'ai-sdet';
 
-/** Run-level dashboard (report) URL, per run mode. */
+/**
+ * Run-level dashboard (report) URL, per backend that answered the trigger.
+ * Not per mode: the default mode's run is a Platform run on a Platform
+ * organisation, and its report is in the Platform app like any other.
+ */
 export function buildRunUrl(
   runId: string,
-  mode: RunMode = 'gpt-driver',
+  backend: RunBackend = 'qa-studio',
 ): string {
-  return mode === 'ai-sdet'
+  return backend === 'platform'
     ? `${PLATFORM_BASE_URL}/reports/${runId}`
     : `${APP_BASE_URL}/gpt-driver/reports/${runId}`;
 }

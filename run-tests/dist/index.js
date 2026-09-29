@@ -28363,6 +28363,7 @@ function createClient(apiKey, baseUrl) {
             // answers with a single run id instead, which GET /runs/{id} polls just
             // the same.
             const ids = asStringArray(json['test_suite_ids']);
+            const backend = ids.length > 0 ? 'qa-studio' : 'platform';
             if (ids.length === 0) {
                 const runId = readRunId(json);
                 if (runId)
@@ -28374,6 +28375,7 @@ function createClient(apiKey, baseUrl) {
             }
             return {
                 runId: first,
+                backend,
                 allRunIds: ids,
                 status: asString(json['status']) || 'unknown',
                 message: asString(json['message']),
@@ -28422,6 +28424,7 @@ function createClient(apiKey, baseUrl) {
             }
             return {
                 runId,
+                backend: 'platform',
                 allRunIds: [runId],
                 status: asString(json['status']) || 'unknown',
                 message: asString(json['message']),
@@ -28919,7 +28922,7 @@ async function run() {
                 metadata,
             });
         core.setOutput('run-id', trigger.runId);
-        const runUrl = (0, summary_1.buildRunUrl)(trigger.runId, mode);
+        const runUrl = (0, summary_1.buildRunUrl)(trigger.runId, trigger.backend);
         if (asyncMode) {
             logger_1.logger.info('async=true — returning immediately after triggering.');
             await writeAsyncSummary(trigger.runId, trigger.status, runUrl);
@@ -29181,9 +29184,13 @@ const APP_BASE_URL = 'https://app.mobileboost.io';
 // Autotest runs are reported in the newer platform app, not the gpt-driver
 // dashboard — different product surface, different host.
 const PLATFORM_BASE_URL = 'https://platform.mobileboost.io';
-/** Run-level dashboard (report) URL, per run mode. */
-function buildRunUrl(runId, mode = 'gpt-driver') {
-    return mode === 'ai-sdet'
+/**
+ * Run-level dashboard (report) URL, per backend that answered the trigger.
+ * Not per mode: the default mode's run is a Platform run on a Platform
+ * organisation, and its report is in the Platform app like any other.
+ */
+function buildRunUrl(runId, backend = 'qa-studio') {
+    return backend === 'platform'
         ? `${PLATFORM_BASE_URL}/reports/${runId}`
         : `${APP_BASE_URL}/gpt-driver/reports/${runId}`;
 }

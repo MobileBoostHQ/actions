@@ -91906,6 +91906,7 @@ function createClient(apiKey, baseUrl) {
             // answers with a single run id instead, which GET /runs/{id} polls just
             // the same.
             const ids = asStringArray(json['test_suite_ids']);
+            const backend = ids.length > 0 ? 'qa-studio' : 'platform';
             if (ids.length === 0) {
                 const runId = readRunId(json);
                 if (runId)
@@ -91917,6 +91918,7 @@ function createClient(apiKey, baseUrl) {
             }
             return {
                 runId: first,
+                backend,
                 allRunIds: ids,
                 status: asString(json['status']) || 'unknown',
                 message: asString(json['message']),
@@ -91965,6 +91967,7 @@ function createClient(apiKey, baseUrl) {
             }
             return {
                 runId,
+                backend: 'platform',
                 allRunIds: [runId],
                 status: asString(json['status']) || 'unknown',
                 message: asString(json['message']),
