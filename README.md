@@ -95,8 +95,8 @@ Triggers a test run against an uploaded build and, with `async: false`, waits fo
 | `api-key`                  | yes      | —                            | MobileBoost API key. Use a secret.                                                                                                |
 | `organisation-id`          | yes      | —                            | Your MobileBoost organisation ID.                                                                                                 |
 | `build-id`                 | yes\*\*  | —                            | Build ID from `upload-build`.                                                                                                     |
-| `bundle-id`                | yes\*\*  | —                            | Bundle id / package name of an app already installed on your reserved device. See [Without a build](#without-a-build).            |
-| `platform`                 | no       | —                            | `ios` or `android`. Required with `bundle-id`; a `build-id` run takes it from the build.                                          |
+| `bundle-id`                | yes\*\*  | -                            | Bundle id / package name of an app already installed on your reserved device. See [Without a build](#without-a-build).            |
+| `platform`                 | no       | -                            | `ios` or `android`. Required with `bundle-id`; a `build-id` run takes it from the build.                                          |
 | `mode`                     | no       | `gpt-driver`                 | `gpt-driver` for AI suites authored in the dashboard, `ai-sdet` for generated test code from your test repo. See [Modes](#modes). |
 | `test-ids`                 | no\*     | —                            | Comma-separated test IDs.                                                                                                         |
 | `tags`                     | no\*     | —                            | Comma-separated tags; tests matching **any** tag run.                                                                             |
