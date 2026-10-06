@@ -91875,8 +91875,16 @@ function createClient(apiKey, baseUrl) {
             // the caller actually provided.
             const payload = {
                 organisationid: opts.organisationId,
-                buildid: opts.buildId,
             };
+            if ('buildId' in opts) {
+                payload['buildid'] = opts.buildId;
+            }
+            else {
+                // Only a Platform organisation runs an app it never uploaded; a QA
+                // Studio one refuses the field with a 400 that says so.
+                payload['bundleid'] = opts.bundleId;
+                payload['platform'] = opts.platform;
+            }
             if (opts.testIds?.length)
                 payload['testids'] = opts.testIds;
             if (opts.tags?.length)
@@ -91935,13 +91943,19 @@ function createClient(apiKey, baseUrl) {
             // names the build `uploadId` rather than `buildId`.
             const payload = {
                 organisationId: opts.organisationId,
-                uploadId: opts.buildId,
                 // Provenance only — recorded on the run doc and used to tell CI runs
                 // apart from dashboard ones. It does NOT gate the PR comment: that is
                 // decided by the org's enableAutotestPrComments flag and whether the
                 // build carries CI metadata.
                 trigger: 'ci',
             };
+            if ('buildId' in opts) {
+                payload['uploadId'] = opts.buildId;
+            }
+            else {
+                payload['bundleId'] = opts.bundleId;
+                payload['platform'] = opts.platform;
+            }
             if (opts.testIds?.length)
                 payload['testIds'] = opts.testIds;
             if (opts.tags?.length)

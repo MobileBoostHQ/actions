@@ -109,6 +109,48 @@ describe('triggerRun', () => {
     expect(res.status).toBe('running');
   });
 
+  it('names an installed app by bundle id and platform instead of a build', async () => {
+    let received: Record<string, unknown> = {};
+    nock(BASE)
+      .post('/tests/execute', (body: Record<string, unknown>) => {
+        received = body;
+        return true;
+      })
+      .reply(200, { runId: 'r1', status: 'running' });
+
+    const res = await createClient(KEY, BASE).triggerRun({
+      organisationId: 'org1',
+      bundleId: 'com.strava',
+      platform: 'android',
+      tags: ['smoke'],
+    });
+
+    expect(received['bundleid']).toBe('com.strava');
+    expect(received['platform']).toBe('android');
+    expect('buildid' in received).toBe(false);
+    expect(res.backend).toBe('platform');
+  });
+
+  it('sends no bundle id or platform for a build', async () => {
+    // A platform next to a build would override the one the build carries.
+    let received: Record<string, unknown> = {};
+    nock(BASE)
+      .post('/tests/execute', (body: Record<string, unknown>) => {
+        received = body;
+        return true;
+      })
+      .reply(200, { test_suite_ids: ['s1'], status: 'running' });
+
+    await createClient(KEY, BASE).triggerRun({
+      organisationId: 'org1',
+      buildId: 'build1',
+      tags: ['smoke'],
+    });
+
+    expect('bundleid' in received).toBe(false);
+    expect('platform' in received).toBe(false);
+  });
+
   it('returns all run ids when iterations > 1', async () => {
     nock(BASE)
       .post('/tests/execute')
@@ -262,6 +304,47 @@ describe('triggerAutotestRun', () => {
     expect(res.allRunIds).toEqual(['ar1']);
     expect(res.backend).toBe('platform');
     expect(res.status).toBe('running');
+  });
+
+  it('names an installed app by bundleId and platform instead of uploadId', async () => {
+    let received: Record<string, unknown> = {};
+    nock(BASE)
+      .post('/tests/run', (body: Record<string, unknown>) => {
+        received = body;
+        return true;
+      })
+      .reply(200, { runId: 'ar5', status: 'running' });
+
+    await createClient(KEY, BASE).triggerAutotestRun({
+      organisationId: 'org1',
+      bundleId: 'com.strava.stravaride',
+      platform: 'ios',
+      tags: ['smoke'],
+    });
+
+    expect(received['bundleId']).toBe('com.strava.stravaride');
+    expect(received['platform']).toBe('ios');
+    expect('uploadId' in received).toBe(false);
+    expect(received['trigger']).toBe('ci');
+  });
+
+  it('sends no bundleId or platform for a build', async () => {
+    let received: Record<string, unknown> = {};
+    nock(BASE)
+      .post('/tests/run', (body: Record<string, unknown>) => {
+        received = body;
+        return true;
+      })
+      .reply(200, { runId: 'ar6', status: 'running' });
+
+    await createClient(KEY, BASE).triggerAutotestRun({
+      organisationId: 'org1',
+      buildId: 'build1',
+    });
+
+    expect(received['uploadId']).toBe('build1');
+    expect('bundleId' in received).toBe(false);
+    expect('platform' in received).toBe(false);
   });
 
   it('forwards a tunnel name so the app can reach the caller network', async () => {

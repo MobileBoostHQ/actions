@@ -94,7 +94,9 @@ Triggers a test run against an uploaded build and, with `async: false`, waits fo
 | -------------------------- | -------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `api-key`                  | yes      | —                            | MobileBoost API key. Use a secret.                                                                                                |
 | `organisation-id`          | yes      | —                            | Your MobileBoost organisation ID.                                                                                                 |
-| `build-id`                 | yes      | —                            | Build ID from `upload-build`.                                                                                                     |
+| `build-id`                 | yes\*\*  | —                            | Build ID from `upload-build`.                                                                                                     |
+| `bundle-id`                | yes\*\*  | —                            | Bundle id / package name of an app already installed on your reserved device. See [Without a build](#without-a-build).            |
+| `platform`                 | no       | —                            | `ios` or `android`. Required with `bundle-id`; a `build-id` run takes it from the build.                                          |
 | `mode`                     | no       | `gpt-driver`                 | `gpt-driver` for AI suites authored in the dashboard, `ai-sdet` for generated test code from your test repo. See [Modes](#modes). |
 | `test-ids`                 | no\*     | —                            | Comma-separated test IDs.                                                                                                         |
 | `tags`                     | no\*     | —                            | Comma-separated tags; tests matching **any** tag run.                                                                             |
@@ -114,6 +116,8 @@ Triggers a test run against an uploaded build and, with `async: false`, waits fo
 | `api-url`                  | no       | `https://api.mobileboost.io` | Override the API base URL.                                                                                                        |
 
 \* At least one of `test-ids`, `tags`, or `tags-query` is required.
+
+\*\* Exactly one of `build-id` or `bundle-id` is required.
 
 ### Modes
 
@@ -233,6 +237,33 @@ forks, where the workflow token is read-only.
     async: false
     fail-on-test-failure: false
 ```
+
+### Without a build
+
+To test an app that is already installed on your organisation's reserved
+device (for example the App Store or Play Store version), name it by
+`bundle-id` instead of uploading a build, and say which `platform` it is on:
+
+```yaml
+- uses: MobileBoostHQ/actions/run-tests@v1
+  with:
+    api-key: ${{ secrets.MOBILEBOOST_API_KEY }}
+    organisation-id: ${{ vars.MOBILEBOOST_ORG_ID }}
+    bundle-id: com.example.app
+    platform: ios
+    mode: ai-sdet
+    tags: smoke
+    async: false
+```
+
+- The run is on a **physical device**, the only kind with your app installed,
+  so `use-physical-device: false` is refused.
+- It tests **whichever version is installed on the device**, not the code of
+  the commit that triggered the workflow. It suits scheduled and manual runs
+  better than pull request checks.
+- Running without a build has to be **enabled for your organisation**; ask
+  support. It is available to organisations on the MobileBoost Platform, in
+  either mode.
 
 **Matrix over platforms:** (the platform is inferred from each build)
 
