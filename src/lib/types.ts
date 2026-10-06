@@ -9,6 +9,19 @@ export interface UploadResult {
   appLink: string;
 }
 
+export type AppPlatform = 'ios' | 'android';
+
+/**
+ * The app a run tests: a build uploaded by `upload-build`, or one already
+ * installed on the organisation's reserved device, named by its bundle id.
+ * Exactly one, so a run can neither name both nor name neither. A bundle id
+ * carries no platform of its own (there is no upload to read it from), so it
+ * always comes with one.
+ */
+export type AppTarget =
+  | { buildId: string }
+  | { bundleId: string; platform: AppPlatform };
+
 /**
  * Which product the organisation's run lives in, decided by the answer the
  * trigger call got rather than by the `mode` input: a Platform organisation

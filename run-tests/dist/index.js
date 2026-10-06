@@ -28332,8 +28332,16 @@ function createClient(apiKey, baseUrl) {
             // the caller actually provided.
             const payload = {
                 organisationid: opts.organisationId,
-                buildid: opts.buildId,
             };
+            if ('buildId' in opts) {
+                payload['buildid'] = opts.buildId;
+            }
+            else {
+                // Only a Platform organisation runs an app it never uploaded; a QA
+                // Studio one refuses the field with a 400 that says so.
+                payload['bundleid'] = opts.bundleId;
+                payload['platform'] = opts.platform;
+            }
             if (opts.testIds?.length)
                 payload['testids'] = opts.testIds;
             if (opts.tags?.length)
@@ -28392,13 +28400,19 @@ function createClient(apiKey, baseUrl) {
             // names the build `uploadId` rather than `buildId`.
             const payload = {
                 organisationId: opts.organisationId,
-                uploadId: opts.buildId,
                 // Provenance only — recorded on the run doc and used to tell CI runs
                 // apart from dashboard ones. It does NOT gate the PR comment: that is
                 // decided by the org's enableAutotestPrComments flag and whether the
                 // build carries CI metadata.
                 trigger: 'ci',
             };
+            if ('buildId' in opts) {
+                payload['uploadId'] = opts.buildId;
+            }
+            else {
+                payload['bundleId'] = opts.bundleId;
+                payload['platform'] = opts.platform;
+            }
             if (opts.testIds?.length)
                 payload['testIds'] = opts.testIds;
             if (opts.tags?.length)
@@ -28833,11 +28847,16 @@ const poll_1 = __nccwpck_require__(9384);
 const poll_2 = __nccwpck_require__(9384);
 const trigger_1 = __nccwpck_require__(833);
 const summary_1 = __nccwpck_require__(5941);
+const target_1 = __nccwpck_require__(9900);
 async function run() {
     try {
         const apiKey = core.getInput('api-key', { required: true });
         const organisationId = core.getInput('organisation-id', { required: true });
-        const buildId = core.getInput('build-id', { required: true });
+        const app = (0, target_1.parseAppTarget)({
+            buildId: core.getInput('build-id'),
+            bundleId: core.getInput('bundle-id'),
+            platform: core.getInput('platform'),
+        });
         const apiUrl = core.getInput('api-url') || 'https://api.mobileboost.io';
         const { mode, aliasUsed } = (0, mode_1.parseMode)(core.getInput('mode'));
         if (aliasUsed) {
@@ -28897,20 +28916,30 @@ async function run() {
                 logger_1.logger.warning(`mode: autotest ignores these inputs: ${ignored.join(', ')}.`);
             }
         }
+        // Refused rather than overridden. Only physical devices carry a
+        // pre-installed app, so the API sends a bundle-id run to one whatever this
+        // says; a workflow asking for a simulator would get a handset without
+        // being told.
+        const usePhysicalDevice = optionalBoolean('use-physical-device');
+        if ('bundleId' in app && usePhysicalDevice === false) {
+            throw new errors_1.InvalidInputError('`bundle-id` runs on a physical device, the only kind with your app ' +
+                'pre-installed. Remove `use-physical-device: false`, or upload a ' +
+                'build to run on a simulator or emulator.');
+        }
         const client = (0, client_1.createClient)(apiKey, apiUrl);
         const trigger = mode === 'ai-sdet'
             ? await (0, trigger_1.triggerAutotestRun)(client, {
+                ...app,
                 organisationId,
-                buildId,
                 testIds,
                 tags,
                 testsRepo: core.getInput('tests-repo') || undefined,
-                usePhysicalDevice: optionalBoolean('use-physical-device'),
+                usePhysicalDevice,
                 tunnelName: tunnelName || undefined,
             })
             : await (0, trigger_1.triggerRun)(client, {
+                ...app,
                 organisationId,
-                buildId,
                 testIds,
                 tags,
                 tagsQuery: tagsQuery || undefined,
@@ -29246,6 +29275,53 @@ function escapeHtml(value) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+
+/***/ }),
+
+/***/ 9900:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.parseAppTarget = parseAppTarget;
+const errors_1 = __nccwpck_require__(7268);
+const PLATFORMS = ['ios', 'android'];
+/**
+ * The app under test, from `build-id`, or from `bundle-id` + `platform` for an
+ * app already installed on the organisation's reserved device.
+ *
+ * `platform` is refused next to `build-id` rather than forwarded: the build
+ * already says which platform it is, and the API lets an explicit platform
+ * override that, so a stale value in a workflow would send the build to a
+ * device it cannot be installed on.
+ */
+function parseAppTarget(inputs) {
+    const buildId = inputs.buildId.trim();
+    const bundleId = inputs.bundleId.trim();
+    const platform = inputs.platform.trim().toLowerCase();
+    if (buildId && bundleId) {
+        throw new errors_1.InvalidInputError('Provide either `build-id` or `bundle-id`, not both.');
+    }
+    if (buildId) {
+        if (platform) {
+            throw new errors_1.InvalidInputError('`platform` is only used with `bundle-id`; a `build-id` run takes its ' +
+                'platform from the build.');
+        }
+        return { buildId };
+    }
+    if (!bundleId) {
+        throw new errors_1.InvalidInputError('Provide `build-id` (from upload-build), or `bundle-id` and `platform` ' +
+            'to test the app already installed on your device.');
+    }
+    if (!PLATFORMS.includes(platform)) {
+        throw new errors_1.InvalidInputError(platform
+            ? `Invalid \`platform\`: "${inputs.platform}". Expected one of: ${PLATFORMS.join(', ')}.`
+            : '`platform` (ios or android) is required with `bundle-id`.');
+    }
+    return { bundleId, platform: platform };
 }
 
 

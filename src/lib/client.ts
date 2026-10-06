@@ -4,7 +4,13 @@ import { HttpClient } from '@actions/http-client';
 import FormData from 'form-data';
 import { ApiError, TimeoutError } from './errors';
 import { logger } from './logger';
-import { RunStatus, TestResult, TriggerResult, UploadResult } from './types';
+import {
+  AppTarget,
+  RunStatus,
+  TestResult,
+  TriggerResult,
+  UploadResult,
+} from './types';
 
 const USER_AGENT = 'mobileboost-actions';
 
@@ -24,9 +30,8 @@ export interface UploadBuildOptions {
   ci?: string;
 }
 
-export interface TriggerRunOptions {
+export type TriggerRunOptions = AppTarget & {
   organisationId: string;
-  buildId: string;
   testIds?: string[];
   tags?: string[];
   tagsQuery?: string;
@@ -36,16 +41,15 @@ export interface TriggerRunOptions {
   testInputs?: Record<string, unknown>;
   deviceConfigs?: unknown[];
   metadata?: Record<string, unknown>;
-}
+};
 
 /**
  * Autotest runs (pytest files executed on real devices) live behind a different
  * endpoint pair to GPT-Driver suites, with a different selection model: no
  * tags-query, no iterations, and the tests come from the org's test repo.
  */
-export interface TriggerAutotestRunOptions {
+export type TriggerAutotestRunOptions = AppTarget & {
   organisationId: string;
-  buildId: string;
   testIds?: string[];
   tags?: string[];
   testsRepo?: string;
@@ -57,7 +61,7 @@ export interface TriggerAutotestRunOptions {
    * terminate, and refuses the field outright.
    */
   tunnelName?: string;
-}
+};
 
 export interface MobileBoostClient {
   uploadBuild(opts: UploadBuildOptions): Promise<UploadResult>;
@@ -133,8 +137,15 @@ export function createClient(
       // the caller actually provided.
       const payload: Record<string, unknown> = {
         organisationid: opts.organisationId,
-        buildid: opts.buildId,
       };
+      if ('buildId' in opts) {
+        payload['buildid'] = opts.buildId;
+      } else {
+        // Only a Platform organisation runs an app it never uploaded; a QA
+        // Studio one refuses the field with a 400 that says so.
+        payload['bundleid'] = opts.bundleId;
+        payload['platform'] = opts.platform;
+      }
       if (opts.testIds?.length) payload['testids'] = opts.testIds;
       if (opts.tags?.length) payload['tags'] = opts.tags;
       if (opts.tagsQuery) payload['tagsquery'] = opts.tagsQuery;
@@ -196,13 +207,18 @@ export function createClient(
       // names the build `uploadId` rather than `buildId`.
       const payload: Record<string, unknown> = {
         organisationId: opts.organisationId,
-        uploadId: opts.buildId,
         // Provenance only — recorded on the run doc and used to tell CI runs
         // apart from dashboard ones. It does NOT gate the PR comment: that is
         // decided by the org's enableAutotestPrComments flag and whether the
         // build carries CI metadata.
         trigger: 'ci',
       };
+      if ('buildId' in opts) {
+        payload['uploadId'] = opts.buildId;
+      } else {
+        payload['bundleId'] = opts.bundleId;
+        payload['platform'] = opts.platform;
+      }
       if (opts.testIds?.length) payload['testIds'] = opts.testIds;
       if (opts.tags?.length) payload['tags'] = opts.tags;
       if (opts.testsRepo) payload['testsRepo'] = opts.testsRepo;

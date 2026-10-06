@@ -14,12 +14,17 @@ import { isCancelled } from './poll';
 import { pollRun } from './poll';
 import { triggerAutotestRun, triggerRun } from './trigger';
 import { buildRunUrl, writeRunSummary } from './summary';
+import { parseAppTarget } from './target';
 
 async function run(): Promise<void> {
   try {
     const apiKey = core.getInput('api-key', { required: true });
     const organisationId = core.getInput('organisation-id', { required: true });
-    const buildId = core.getInput('build-id', { required: true });
+    const app = parseAppTarget({
+      buildId: core.getInput('build-id'),
+      bundleId: core.getInput('bundle-id'),
+      platform: core.getInput('platform'),
+    });
     const apiUrl = core.getInput('api-url') || 'https://api.mobileboost.io';
     const { mode, aliasUsed } = parseMode(core.getInput('mode'));
     if (aliasUsed) {
@@ -105,22 +110,35 @@ async function run(): Promise<void> {
       }
     }
 
+    // Refused rather than overridden. Only physical devices carry a
+    // pre-installed app, so the API sends a bundle-id run to one whatever this
+    // says; a workflow asking for a simulator would get a handset without
+    // being told.
+    const usePhysicalDevice = optionalBoolean('use-physical-device');
+    if ('bundleId' in app && usePhysicalDevice === false) {
+      throw new InvalidInputError(
+        '`bundle-id` runs on a physical device, the only kind with your app ' +
+          'pre-installed. Remove `use-physical-device: false`, or upload a ' +
+          'build to run on a simulator or emulator.',
+      );
+    }
+
     const client = createClient(apiKey, apiUrl);
 
     const trigger =
       mode === 'ai-sdet'
         ? await triggerAutotestRun(client, {
+            ...app,
             organisationId,
-            buildId,
             testIds,
             tags,
             testsRepo: core.getInput('tests-repo') || undefined,
-            usePhysicalDevice: optionalBoolean('use-physical-device'),
+            usePhysicalDevice,
             tunnelName: tunnelName || undefined,
           })
         : await triggerRun(client, {
+            ...app,
             organisationId,
-            buildId,
             testIds,
             tags,
             tagsQuery: tagsQuery || undefined,

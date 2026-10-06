@@ -12,8 +12,20 @@ inputs:
     description: 'Your MobileBoost organisation ID.'
     required: true
   build-id:
-    description: 'Build ID from the upload-build action output.'
-    required: true
+    description: |
+      Build ID from the upload-build action output. Provide this, or bundle-id
+      and platform.
+    required: false
+  bundle-id:
+    description: |
+      Bundle id (iOS) or package name (Android) of an app already installed on
+      your organisation's reserved device, to test it without uploading a
+      build. Requires platform. Runs on a physical device. Must be enabled for
+      your organisation.
+    required: false
+  platform:
+    description: 'ios or android. Required with bundle-id; a build-id run takes it from the build.'
+    required: false
   mode:
     description: |
       Which kind of tests to run:
