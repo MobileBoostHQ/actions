@@ -91838,6 +91838,7 @@ function createClient(apiKey, baseUrl) {
             succeededTests: normalizeTests(json['succeededTests']),
             failedTests: normalizeTests(json['failedTests']),
             blockedTests: normalizeTests(json['blockedTests']),
+            skippedTests: normalizeSkippedTests(json['skippedTests']),
         };
     };
     return {
@@ -91930,6 +91931,8 @@ function createClient(apiKey, baseUrl) {
                 allRunIds: ids,
                 status: asString(json['status']) || 'unknown',
                 message: asString(json['message']),
+                skippedTests: normalizeSkippedTests(json['skippedTests']),
+                warnings: asStringArray(json['warnings']),
             };
         },
         async getRunStatus(runId) {
@@ -91985,6 +91988,8 @@ function createClient(apiKey, baseUrl) {
                 allRunIds: [runId],
                 status: asString(json['status']) || 'unknown',
                 message: asString(json['message']),
+                skippedTests: normalizeSkippedTests(json['skippedTests']),
+                warnings: asStringArray(json['warnings']),
             };
         },
         async getAutotestRunStatus(runId) {
@@ -92121,6 +92126,26 @@ function normalizeTests(value) {
             title: asString(obj['title']),
             status: asString(obj['status']),
             recording: asString(obj['recording']),
+        };
+    });
+}
+/**
+ * Tests a Platform run left out because they are not automated yet. Absent on
+ * QA Studio suites and on backends that predate it, which is the same as none.
+ */
+function normalizeSkippedTests(value) {
+    if (!Array.isArray(value))
+        return [];
+    return value.map((item) => {
+        const obj = item && typeof item === 'object'
+            ? item
+            : {};
+        return {
+            testId: asString(obj['testId']),
+            title: asString(obj['title']),
+            platform: asString(obj['platform']),
+            reason: asString(obj['reason']),
+            detail: asString(obj['detail']),
         };
     });
 }

@@ -7,6 +7,7 @@ import { logger } from './logger';
 import {
   AppTarget,
   RunStatus,
+  SkippedTest,
   TestResult,
   TriggerResult,
   UploadResult,
@@ -95,6 +96,7 @@ export function createClient(
       succeededTests: normalizeTests(json['succeededTests']),
       failedTests: normalizeTests(json['failedTests']),
       blockedTests: normalizeTests(json['blockedTests']),
+      skippedTests: normalizeSkippedTests(json['skippedTests']),
     };
   };
 
@@ -190,6 +192,8 @@ export function createClient(
         allRunIds: ids,
         status: asString(json['status']) || 'unknown',
         message: asString(json['message']),
+        skippedTests: normalizeSkippedTests(json['skippedTests']),
+        warnings: asStringArray(json['warnings']),
       };
     },
 
@@ -252,6 +256,8 @@ export function createClient(
         allRunIds: [runId],
         status: asString(json['status']) || 'unknown',
         message: asString(json['message']),
+        skippedTests: normalizeSkippedTests(json['skippedTests']),
+        warnings: asStringArray(json['warnings']),
       };
     },
 
@@ -455,6 +461,27 @@ function normalizeTests(value: unknown): TestResult[] {
       title: asString(obj['title']),
       status: asString(obj['status']),
       recording: asString(obj['recording']),
+    };
+  });
+}
+
+/**
+ * Tests a Platform run left out because they are not automated yet. Absent on
+ * QA Studio suites and on backends that predate it, which is the same as none.
+ */
+function normalizeSkippedTests(value: unknown): SkippedTest[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item): SkippedTest => {
+    const obj =
+      item && typeof item === 'object'
+        ? (item as Record<string, unknown>)
+        : {};
+    return {
+      testId: asString(obj['testId']),
+      title: asString(obj['title']),
+      platform: asString(obj['platform']),
+      reason: asString(obj['reason']),
+      detail: asString(obj['detail']),
     };
   });
 }

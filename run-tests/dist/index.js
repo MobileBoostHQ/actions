@@ -28295,6 +28295,7 @@ function createClient(apiKey, baseUrl) {
             succeededTests: normalizeTests(json['succeededTests']),
             failedTests: normalizeTests(json['failedTests']),
             blockedTests: normalizeTests(json['blockedTests']),
+            skippedTests: normalizeSkippedTests(json['skippedTests']),
         };
     };
     return {
@@ -28387,6 +28388,8 @@ function createClient(apiKey, baseUrl) {
                 allRunIds: ids,
                 status: asString(json['status']) || 'unknown',
                 message: asString(json['message']),
+                skippedTests: normalizeSkippedTests(json['skippedTests']),
+                warnings: asStringArray(json['warnings']),
             };
         },
         async getRunStatus(runId) {
@@ -28442,6 +28445,8 @@ function createClient(apiKey, baseUrl) {
                 allRunIds: [runId],
                 status: asString(json['status']) || 'unknown',
                 message: asString(json['message']),
+                skippedTests: normalizeSkippedTests(json['skippedTests']),
+                warnings: asStringArray(json['warnings']),
             };
         },
         async getAutotestRunStatus(runId) {
@@ -28578,6 +28583,26 @@ function normalizeTests(value) {
             title: asString(obj['title']),
             status: asString(obj['status']),
             recording: asString(obj['recording']),
+        };
+    });
+}
+/**
+ * Tests a Platform run left out because they are not automated yet. Absent on
+ * QA Studio suites and on backends that predate it, which is the same as none.
+ */
+function normalizeSkippedTests(value) {
+    if (!Array.isArray(value))
+        return [];
+    return value.map((item) => {
+        const obj = item && typeof item === 'object'
+            ? item
+            : {};
+        return {
+            testId: asString(obj['testId']),
+            title: asString(obj['title']),
+            platform: asString(obj['platform']),
+            reason: asString(obj['reason']),
+            detail: asString(obj['detail']),
         };
     });
 }
@@ -28847,6 +28872,7 @@ const poll_1 = __nccwpck_require__(9384);
 const poll_2 = __nccwpck_require__(9384);
 const trigger_1 = __nccwpck_require__(833);
 const summary_1 = __nccwpck_require__(5941);
+const skipped_1 = __nccwpck_require__(3985);
 const target_1 = __nccwpck_require__(9900);
 async function run() {
     try {
@@ -28951,10 +28977,12 @@ async function run() {
                 metadata,
             });
         core.setOutput('run-id', trigger.runId);
+        // Known at trigger time, so set in async mode too.
+        core.setOutput('not-scheduled', String(trigger.skippedTests.length));
         const runUrl = (0, summary_1.buildRunUrl)(trigger.runId, trigger.backend);
         if (asyncMode) {
             logger_1.logger.info('async=true — returning immediately after triggering.');
-            await writeAsyncSummary(trigger.runId, trigger.status, runUrl);
+            await writeAsyncSummary(trigger.runId, trigger.status, runUrl, trigger.skippedTests);
             return;
         }
         const startedAt = Date.now();
@@ -28964,6 +28992,9 @@ async function run() {
             mode,
         });
         const durationMs = Date.now() - startedAt;
+        // Reported, never gated on: a test that was not scheduled was not tested.
+        final.skippedTests = (0, skipped_1.resolveSkipped)(final.skippedTests, trigger.skippedTests);
+        core.setOutput('not-scheduled', String(final.skippedTests.length));
         const passed = final.succeededTests.length;
         const failed = final.failedTests.length;
         const blocked = final.blockedTests.length;
@@ -29011,15 +29042,24 @@ function optionalJsonArray(name) {
     const raw = core.getInput(name);
     return raw ? (0, validate_1.parseJsonArray)(name, raw) : undefined;
 }
-async function writeAsyncSummary(runId, status, runUrl) {
-    await core.summary
+async function writeAsyncSummary(runId, status, runUrl, skipped) {
+    let summary = core.summary
         .addHeading('MobileBoost — Test Run Triggered', 2)
         .addRaw(`Run \`${runId}\` triggered (status: ${status}).`, true)
         .addEOL()
         .addRaw('Running asynchronously — not waiting for completion.', true)
         .addEOL()
         .addLink('Open run in dashboard', runUrl)
-        .write();
+        .addEOL();
+    if (skipped.length > 0) {
+        summary = summary
+            .addHeading(`Not scheduled (${skipped.length})`, 3)
+            .addRaw('These tests matched the selection but are not automated for this ' +
+            'platform yet, so the run left them out.', true)
+            .addEOL()
+            .addTable((0, summary_1.buildSkippedRows)(skipped));
+    }
+    await summary.write();
 }
 void run();
 
@@ -29166,6 +29206,70 @@ function defaultSleep(ms) {
 
 /***/ }),
 
+/***/ 3985:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.reasonLabel = reasonLabel;
+exports.skippedWarnings = skippedWarnings;
+exports.resolveSkipped = resolveSkipped;
+/**
+ * Plain-language name for why a test is not in the run. Unknown reasons fall
+ * back to the backend's own wording rather than to a guess.
+ */
+function reasonLabel(reason) {
+    switch (reason) {
+        case 'not_automated':
+            return 'Not automated yet';
+        case 'generation_in_progress':
+            return 'Automation being generated';
+        case 'generation_failed':
+            return 'Automation generation failed';
+        case 'generation_blocked':
+            return 'Automation generation blocked';
+        case 'not_ready':
+            return 'Not ready on this platform';
+        default:
+            return reason ? reason.replace(/_/g, ' ') : 'Not ready';
+    }
+}
+/**
+ * The warnings to annotate the workflow with after a trigger. The backend's
+ * own sentences when it sent some, since it knows the selection that matched;
+ * otherwise one summary built from the skipped list, so a backend that only
+ * sends the list still gets noticed in the run log.
+ */
+function skippedWarnings(result) {
+    if (result.warnings.length > 0)
+        return result.warnings;
+    const skipped = result.skippedTests;
+    if (skipped.length === 0)
+        return [];
+    const names = skipped.map(describe).join(', ');
+    const noun = skipped.length === 1 ? 'test was' : 'tests were';
+    return [
+        `${skipped.length} matched ${noun} not scheduled because they are not ` +
+            `ready for automation yet: ${names}. They do not affect the run result.`,
+    ];
+}
+/**
+ * The skipped tests to report for a finished run. The status endpoint is the
+ * record once it carries them; an older backend that only answered them on the
+ * trigger still has them reported, from the trigger.
+ */
+function resolveSkipped(fromStatus, fromTrigger) {
+    return fromStatus.length > 0 ? fromStatus : fromTrigger;
+}
+function describe(test) {
+    const name = test.title || test.testId || '(untitled)';
+    return `${name} (${reasonLabel(test.reason).toLowerCase()})`;
+}
+
+
+/***/ }),
+
 /***/ 5941:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -29207,8 +29311,11 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.buildRunUrl = buildRunUrl;
 exports.writeRunSummary = writeRunSummary;
+exports.buildAggregate = buildAggregate;
+exports.buildSkippedRows = buildSkippedRows;
 const core = __importStar(__nccwpck_require__(7484));
 const format_1 = __nccwpck_require__(432);
+const skipped_1 = __nccwpck_require__(3985);
 const APP_BASE_URL = 'https://app.mobileboost.io';
 // Autotest runs are reported in the newer platform app, not the gpt-driver
 // dashboard — different product surface, different host.
@@ -29224,13 +29331,9 @@ function buildRunUrl(runId, backend = 'qa-studio') {
         : `${APP_BASE_URL}/gpt-driver/reports/${runId}`;
 }
 async function writeRunSummary(run, opts) {
-    const passed = run.succeededTests.length;
-    const failed = run.failedTests.length;
-    const blocked = run.blockedTests.length;
-    const aggregate = `✅ ${passed} passed&nbsp;&nbsp;&nbsp;❌ ${failed} failed&nbsp;&nbsp;&nbsp;⚠️ ${blocked} blocked`;
     let summary = core.summary
         .addHeading('MobileBoost — Test Run', 2)
-        .addRaw(aggregate, true)
+        .addRaw(buildAggregate(run), true)
         .addEOL();
     if (opts.cancelled) {
         summary = summary.addRaw('> **Run was cancelled.**', true).addEOL();
@@ -29244,7 +29347,52 @@ async function writeRunSummary(run, opts) {
     if (rows.length > 1) {
         summary = summary.addTable(rows);
     }
+    if (run.skippedTests.length > 0) {
+        summary = summary
+            .addHeading('Not scheduled', 3)
+            .addRaw(NOT_SCHEDULED_NOTE, true)
+            .addEOL()
+            .addTable(buildSkippedRows(run.skippedTests));
+    }
     await summary.write();
+}
+const NOT_SCHEDULED_NOTE = 'These tests matched the selection but are not automated for this ' +
+    'platform yet, so the run left them out. They do not affect the result.';
+/**
+ * The one-line tally. "Not scheduled" only appears when something was left
+ * out, so a summary for a run without skipped tests reads as it always has.
+ */
+function buildAggregate(run) {
+    const sep = '&nbsp;&nbsp;&nbsp;';
+    const parts = [
+        `✅ ${run.succeededTests.length} passed`,
+        `❌ ${run.failedTests.length} failed`,
+        `⚠️ ${run.blockedTests.length} blocked`,
+    ];
+    if (run.skippedTests.length > 0) {
+        parts.push(`⏭️ ${run.skippedTests.length} not scheduled`);
+    }
+    return parts.join(sep);
+}
+/** Header plus one row per test the run left out, with the backend's reason. */
+function buildSkippedRows(skipped) {
+    const header = [
+        { data: 'Test', header: true },
+        { data: 'Platform', header: true },
+        { data: 'Reason', header: true },
+    ];
+    return [
+        header,
+        ...skipped.map((test) => {
+            const label = (0, skipped_1.reasonLabel)(test.reason);
+            const reason = test.detail ? `${label}: ${test.detail}` : label;
+            return [
+                escapeHtml(test.title || test.testId || '(untitled)'),
+                escapeHtml(test.platform || '-'),
+                escapeHtml(reason),
+            ];
+        }),
+    ];
 }
 /** Failed and blocked tests are listed first so they're seen immediately. */
 function buildRows(run) {
@@ -29336,6 +29484,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.triggerRun = triggerRun;
 exports.triggerAutotestRun = triggerAutotestRun;
 const logger_1 = __nccwpck_require__(2415);
+const skipped_1 = __nccwpck_require__(3985);
 /**
  * Triggers a GPT-Driver suite run and returns the result. The backend creates
  * one suite per `iterations`; this action tracks only the first (we warn when
@@ -29344,6 +29493,7 @@ const logger_1 = __nccwpck_require__(2415);
 async function triggerRun(client, opts) {
     const result = await client.triggerRun(opts);
     logger_1.logger.info(`Triggered run ${result.runId} (status: ${result.status})`);
+    warnAboutSkipped(result);
     if (result.allRunIds.length > 1) {
         logger_1.logger.warning(`Trigger created ${result.allRunIds.length} runs (iterations > 1); ` +
             `this action tracks only the first: ${result.runId}. ` +
@@ -29359,7 +29509,18 @@ async function triggerRun(client, opts) {
 async function triggerAutotestRun(client, opts) {
     const result = await client.triggerAutotestRun(opts);
     logger_1.logger.info(`Triggered autotest run ${result.runId} (status: ${result.status})`);
+    warnAboutSkipped(result);
     return result;
+}
+/**
+ * Annotates the workflow when the run leaves out tests the selection matched.
+ * A warning, not a failure: the tests that are ready still run, and the ones
+ * that are not are reported, so a tag can be used while its tests are still
+ * being automated.
+ */
+function warnAboutSkipped(result) {
+    for (const warning of (0, skipped_1.skippedWarnings)(result))
+        logger_1.logger.warning(warning);
 }
 
 

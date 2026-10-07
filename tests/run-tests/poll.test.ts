@@ -16,6 +16,7 @@ function status(partial: Partial<RunStatus>): RunStatus {
     succeededTests: [],
     failedTests: [],
     blockedTests: [],
+    skippedTests: [],
     ...partial,
   };
 }
@@ -51,6 +52,19 @@ describe('status classification', () => {
       isPassing(status({ status: 'completed', blockedTests: [test('a')] })),
     ).toBe(false);
     expect(isPassing(status({ status: 'cancelled' }))).toBe(false);
+  });
+
+  it('isPassing ignores tests the run did not schedule', () => {
+    const skippedTests = [
+      {
+        testId: 't1',
+        title: 'Book a walk',
+        platform: 'android',
+        reason: 'not_automated',
+        detail: '',
+      },
+    ];
+    expect(isPassing(status({ status: 'completed', skippedTests }))).toBe(true);
   });
 });
 

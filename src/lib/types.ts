@@ -42,6 +42,35 @@ export interface TriggerResult {
   /** Wire status of the trigger call: `queued` or `running`. */
   status: string;
   message: string;
+  /**
+   * Tests the selection matched that the run does not include, because they
+   * are not automated for the run's platform yet. Platform runs only, and only
+   * for tests matched by a tag: a test named by id that cannot run fails the
+   * trigger instead. Empty for QA Studio suites and older backends.
+   */
+  skippedTests: SkippedTest[];
+  /** Human-readable notes from the backend about the trigger, e.g. skipped tests. */
+  warnings: string[];
+}
+
+/**
+ * A test the selection matched but the run left out. It has no execution, is
+ * not counted in `totalTests`, and never changes whether the run passes: the
+ * backend knew it up front, and nothing about the app was tested.
+ */
+export interface SkippedTest {
+  testId: string;
+  title: string;
+  platform: string;
+  /**
+   * Why it is not in the run: `not_automated`, `generation_in_progress`,
+   * `generation_failed`, `generation_blocked` or `not_ready`. A plain string
+   * on purpose, so a reason the backend adds later still reads as a reason
+   * rather than failing the action.
+   */
+  reason: string;
+  /** The backend's own one-line explanation, shown as-is. */
+  detail: string;
 }
 
 export interface TestResult {
@@ -68,4 +97,6 @@ export interface RunStatus {
   succeededTests: TestResult[];
   failedTests: TestResult[];
   blockedTests: TestResult[];
+  /** See `SkippedTest`. Empty for QA Studio suites and older backends. */
+  skippedTests: SkippedTest[];
 }
