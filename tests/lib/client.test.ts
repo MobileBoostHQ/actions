@@ -51,7 +51,51 @@ describe('getRunStatus', () => {
     const res = await createClient(KEY, BASE).getRunStatus('run2');
     expect(res.runId).toBe('run2');
     expect(res.failedTests).toEqual([]);
+    expect(res.skippedTests).toEqual([]);
     expect(res.totalTests).toBe(0);
+  });
+
+  it('maps tests the run did not schedule', async () => {
+    nock(BASE)
+      .get('/runs/run3')
+      .reply(200, {
+        runId: 'run3',
+        status: 'completed',
+        totalTests: 1,
+        succeededTests: [
+          { id: 'e1', title: 'A', status: 'succeeded', recording: '' },
+        ],
+        skippedTests: [
+          {
+            testId: 't9',
+            title: 'Owner books a walk',
+            platform: 'android',
+            reason: 'not_automated',
+            detail: 'No automation has been generated for this test yet.',
+          },
+          // Missing fields and a reason this version does not know.
+          { testId: 't10', reason: 'something_new' },
+        ],
+      });
+
+    const res = await createClient(KEY, BASE).getRunStatus('run3');
+    expect(res.totalTests).toBe(1);
+    expect(res.skippedTests).toEqual([
+      {
+        testId: 't9',
+        title: 'Owner books a walk',
+        platform: 'android',
+        reason: 'not_automated',
+        detail: 'No automation has been generated for this test yet.',
+      },
+      {
+        testId: 't10',
+        title: '',
+        platform: '',
+        reason: 'something_new',
+        detail: '',
+      },
+    ]);
   });
 
   it('maps 401 to an actionable ApiError without retrying', async () => {
@@ -200,6 +244,51 @@ describe('triggerRun', () => {
     expect(res.allRunIds).toEqual(['pr1']);
     expect(res.backend).toBe('platform');
     expect(res.status).toBe('running');
+  });
+
+  it('reads skipped tests and warnings from a Platform answer', async () => {
+    nock(BASE)
+      .post('/tests/execute')
+      .reply(200, {
+        runId: 'pr2',
+        status: 'running',
+        scheduledTests: 47,
+        skippedTests: [
+          {
+            testId: 't1',
+            title: 'Owner books a walk',
+            platform: 'android',
+            reason: 'generation_in_progress',
+            detail: 'Automation for android is being generated.',
+          },
+        ],
+        warnings: ['1 of 48 tests matching tags [owner-android] was not scheduled.'],
+      });
+
+    const res = await createClient(KEY, BASE).triggerRun({
+      organisationId: 'o',
+      buildId: 'b',
+      tags: ['owner-android'],
+    });
+    expect(res.skippedTests).toHaveLength(1);
+    expect(res.skippedTests[0]?.reason).toBe('generation_in_progress');
+    expect(res.warnings).toEqual([
+      '1 of 48 tests matching tags [owner-android] was not scheduled.',
+    ]);
+  });
+
+  it('answers no skipped tests or warnings for a QA Studio suite', async () => {
+    nock(BASE)
+      .post('/tests/execute')
+      .reply(200, { test_suite_ids: ['s1'], status: 'running' });
+
+    const res = await createClient(KEY, BASE).triggerRun({
+      organisationId: 'o',
+      buildId: 'b',
+      tags: ['x'],
+    });
+    expect(res.skippedTests).toEqual([]);
+    expect(res.warnings).toEqual([]);
   });
 
   it('prefers suite ids when a response carries both', async () => {
@@ -424,6 +513,29 @@ describe('triggerAutotestRun', () => {
     expect(res.runId).toBe('ar4');
     expect(res.allRunIds).toEqual(['ar4']);
     expect(res.backend).toBe('platform');
+  });
+
+  it('reads skipped tests and defaults them when absent', async () => {
+    nock(BASE)
+      .post('/tests/run')
+      .reply(200, {
+        runId: 'ar5',
+        status: 'running',
+        skippedTests: [
+          { testId: 't2', title: 'Walker signs in', platform: 'ios', reason: 'not_automated', detail: '' },
+        ],
+      });
+    nock(BASE).post('/tests/run').reply(200, { runId: 'ar6', status: 'running' });
+
+    const client = createClient(KEY, BASE);
+    const opts = { organisationId: 'o', buildId: 'b', tags: ['x'] };
+    const withSkipped = await client.triggerAutotestRun(opts);
+    expect(withSkipped.skippedTests[0]?.title).toBe('Walker signs in');
+    expect(withSkipped.warnings).toEqual([]);
+
+    const older = await client.triggerAutotestRun(opts);
+    expect(older.skippedTests).toEqual([]);
+    expect(older.warnings).toEqual([]);
   });
 
   it('fails loudly when neither runId nor run_id is present', async () => {

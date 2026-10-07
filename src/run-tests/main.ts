@@ -2,6 +2,7 @@ import * as core from '@actions/core';
 import { createClient } from '../lib/client';
 import { InvalidInputError, MobileBoostError } from '../lib/errors';
 import { logger } from '../lib/logger';
+import { SkippedTest } from '../lib/types';
 import {
   parseBoolean,
   parseCsv,
@@ -13,7 +14,8 @@ import { parseMode } from './mode';
 import { isCancelled } from './poll';
 import { pollRun } from './poll';
 import { triggerAutotestRun, triggerRun } from './trigger';
-import { buildRunUrl, writeRunSummary } from './summary';
+import { buildRunUrl, buildSkippedRows, writeRunSummary } from './summary';
+import { resolveSkipped } from './skipped';
 import { parseAppTarget } from './target';
 
 async function run(): Promise<void> {
@@ -150,12 +152,19 @@ async function run(): Promise<void> {
             metadata,
           });
     core.setOutput('run-id', trigger.runId);
+    // Known at trigger time, so set in async mode too.
+    core.setOutput('not-scheduled', String(trigger.skippedTests.length));
 
     const runUrl = buildRunUrl(trigger.runId, trigger.backend);
 
     if (asyncMode) {
       logger.info('async=true — returning immediately after triggering.');
-      await writeAsyncSummary(trigger.runId, trigger.status, runUrl);
+      await writeAsyncSummary(
+        trigger.runId,
+        trigger.status,
+        runUrl,
+        trigger.skippedTests,
+      );
       return;
     }
 
@@ -166,6 +175,12 @@ async function run(): Promise<void> {
       mode,
     });
     const durationMs = Date.now() - startedAt;
+    // Reported, never gated on: a test that was not scheduled was not tested.
+    final.skippedTests = resolveSkipped(
+      final.skippedTests,
+      trigger.skippedTests,
+    );
+    core.setOutput('not-scheduled', String(final.skippedTests.length));
 
     const passed = final.succeededTests.length;
     const failed = final.failedTests.length;
@@ -226,15 +241,28 @@ async function writeAsyncSummary(
   runId: string,
   status: string,
   runUrl: string,
+  skipped: SkippedTest[],
 ): Promise<void> {
-  await core.summary
+  let summary = core.summary
     .addHeading('MobileBoost — Test Run Triggered', 2)
     .addRaw(`Run \`${runId}\` triggered (status: ${status}).`, true)
     .addEOL()
     .addRaw('Running asynchronously — not waiting for completion.', true)
     .addEOL()
     .addLink('Open run in dashboard', runUrl)
-    .write();
+    .addEOL();
+  if (skipped.length > 0) {
+    summary = summary
+      .addHeading(`Not scheduled (${skipped.length})`, 3)
+      .addRaw(
+        'These tests matched the selection but are not automated for this ' +
+          'platform yet, so the run left them out.',
+        true,
+      )
+      .addEOL()
+      .addTable(buildSkippedRows(skipped));
+  }
+  await summary.write();
 }
 
 void run();

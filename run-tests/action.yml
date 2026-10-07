@@ -117,6 +117,8 @@ outputs:
     description: 'Number of failed tests (sync mode only).'
   blocked:
     description: 'Number of blocked tests (sync mode only).'
+  not-scheduled:
+    description: 'Number of matched tests the run left out because they are not automated for its platform yet. Set in async mode too. They never fail the job.'
 runs:
   using: 'node24'
   main: 'dist/index.js'

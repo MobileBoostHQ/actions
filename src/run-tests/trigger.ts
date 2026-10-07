@@ -5,6 +5,7 @@ import {
 } from '../lib/client';
 import { logger } from '../lib/logger';
 import { TriggerResult } from '../lib/types';
+import { skippedWarnings } from './skipped';
 
 /**
  * Triggers a GPT-Driver suite run and returns the result. The backend creates
@@ -17,6 +18,8 @@ export async function triggerRun(
 ): Promise<TriggerResult> {
   const result = await client.triggerRun(opts);
   logger.info(`Triggered run ${result.runId} (status: ${result.status})`);
+
+  warnAboutSkipped(result);
 
   if (result.allRunIds.length > 1) {
     logger.warning(
@@ -41,5 +44,16 @@ export async function triggerAutotestRun(
   logger.info(
     `Triggered autotest run ${result.runId} (status: ${result.status})`,
   );
+  warnAboutSkipped(result);
   return result;
+}
+
+/**
+ * Annotates the workflow when the run leaves out tests the selection matched.
+ * A warning, not a failure: the tests that are ready still run, and the ones
+ * that are not are reported, so a tag can be used while its tests are still
+ * being automated.
+ */
+function warnAboutSkipped(result: TriggerResult): void {
+  for (const warning of skippedWarnings(result)) logger.warning(warning);
 }

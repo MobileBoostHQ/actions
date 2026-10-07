@@ -153,12 +153,13 @@ test the agent auto-healed.
 
 ### Outputs
 
-| Output    | Description                               |
-| --------- | ----------------------------------------- |
-| `run-id`  | The ID of the triggered run.              |
-| `passed`  | Number of passed tests (sync mode only).  |
-| `failed`  | Number of failed tests (sync mode only).  |
-| `blocked` | Number of blocked tests (sync mode only). |
+| Output          | Description                                                                                         |
+| --------------- | --------------------------------------------------------------------------------------------------- |
+| `run-id`        | The ID of the triggered run.                                                                        |
+| `passed`        | Number of passed tests (sync mode only).                                                            |
+| `failed`        | Number of failed tests (sync mode only).                                                            |
+| `blocked`       | Number of blocked tests (sync mode only).                                                           |
+| `not-scheduled` | Number of matched tests the run left out because they are not automated yet. Set in async mode too. |
 
 ### Behavior
 
@@ -171,6 +172,15 @@ test the agent auto-healed.
   `passed`/`failed`/`blocked` outputs, and fails the job when
   `fail-on-test-failure` is `true` and anything failed or was blocked. A
   `cancelled` run always fails the job.
+- **Tests that are not automated yet (Platform organisations):** when `tags`
+  match a test that has no automation for the run's platform yet (never
+  generated, still generating, or generation failed), the run goes ahead with
+  the tests that are ready and leaves that one out. The action logs a warning
+  annotation naming each test left out, sets the `not-scheduled` output, and
+  adds a **Not scheduled** table to the job summary. These tests never fail
+  the job and are not counted as passed, failed or blocked. A test named in
+  `test-ids` is different: if it cannot run, the trigger fails, because you
+  asked for that test specifically.
 - **`iterations` caveat:** the API creates one suite run per iteration. This
   action **tracks only the first** run and warns if more were created. Leave
   `iterations` unset (the default) for a single tracked run.
