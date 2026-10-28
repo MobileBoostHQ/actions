@@ -5,6 +5,7 @@ import {
   isCancelled,
   isPassing,
   isTerminal,
+  needsReview,
   pollRun,
 } from '../../src/run-tests/poll';
 
@@ -65,6 +66,40 @@ describe('status classification', () => {
       },
     ];
     expect(isPassing(status({ status: 'completed', skippedTests }))).toBe(true);
+  });
+});
+
+describe('needs review', () => {
+  it('needsReview reads a missing field as none', () => {
+    expect(needsReview(status({ status: 'completed' }))).toEqual([]);
+    const review = status({
+      status: 'completed',
+      needsReviewTests: [test('r')],
+    });
+    expect(needsReview(review).map((t) => t.id)).toEqual(['r']);
+  });
+
+  it('isPassing ignores tests that need review by default', () => {
+    const run = status({ status: 'completed', needsReviewTests: [test('r')] });
+    expect(isPassing(run)).toBe(true);
+    expect(isPassing(run, { failOnNeedsReview: false })).toBe(true);
+  });
+
+  it('isPassing fails on them when fail-on-needs-review is on', () => {
+    const run = status({ status: 'completed', needsReviewTests: [test('r')] });
+    expect(isPassing(run, { failOnNeedsReview: true })).toBe(false);
+    expect(
+      isPassing(status({ status: 'completed' }), { failOnNeedsReview: true }),
+    ).toBe(true);
+  });
+
+  it('a failure still fails whatever the review setting', () => {
+    const run = status({
+      status: 'completed',
+      failedTests: [test('f')],
+      needsReviewTests: [test('r')],
+    });
+    expect(isPassing(run)).toBe(false);
   });
 });
 

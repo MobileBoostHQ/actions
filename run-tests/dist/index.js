@@ -28295,6 +28295,8 @@ function createClient(apiKey, baseUrl) {
             succeededTests: normalizeTests(json['succeededTests']),
             failedTests: normalizeTests(json['failedTests']),
             blockedTests: normalizeTests(json['blockedTests']),
+            // Absent on QA Studio suites and on backends older than the status.
+            needsReviewTests: normalizeTests(json['needsReviewTests']),
             skippedTests: normalizeSkippedTests(json['skippedTests']),
         };
     };
@@ -28924,6 +28926,10 @@ async function run() {
         const asyncMode = (0, validate_1.parseBoolean)('async', core.getInput('async') || 'true');
         const timeoutMinutes = (0, validate_1.parseInteger)('timeout-minutes', core.getInput('timeout-minutes') || '180');
         const failOnTestFailure = (0, validate_1.parseBoolean)('fail-on-test-failure', core.getInput('fail-on-test-failure') || 'true');
+        // A test that needs review is a question for a person (the healing agent
+        // could not tell a broken test from an intended app change), so by
+        // default it warns rather than failing the job.
+        const failOnNeedsReview = (0, validate_1.parseBoolean)('fail-on-needs-review', core.getInput('fail-on-needs-review') || 'false');
         // The autotest endpoint takes none of these. Say so rather than dropping
         // them silently — a run configured with launch params that never reached
         // the device looks like a product bug from the outside.
@@ -28998,20 +29004,41 @@ async function run() {
         const passed = final.succeededTests.length;
         const failed = final.failedTests.length;
         const blocked = final.blockedTests.length;
+        const reviewTests = (0, poll_1.needsReview)(final);
+        const review = reviewTests.length;
         core.setOutput('passed', String(passed));
         core.setOutput('failed', String(failed));
         core.setOutput('blocked', String(blocked));
+        core.setOutput('needs-review', String(review));
+        // One annotation per test, so each shows on the workflow run page with a
+        // link to its report, whether or not it fails the job.
+        for (const test of reviewTests) {
+            core.warning((0, summary_1.needsReviewAnnotation)(test), {
+                title: summary_1.NEEDS_REVIEW_ANNOTATION_TITLE,
+            });
+        }
         const cancelled = (0, poll_1.isCancelled)(final);
-        await (0, summary_1.writeRunSummary)(final, { durationMs, runUrl, cancelled });
+        await (0, summary_1.writeRunSummary)(final, {
+            durationMs,
+            runUrl,
+            cancelled,
+            failOnNeedsReview,
+        });
         if (cancelled) {
             core.setFailed(`Run was cancelled. See ${runUrl}`);
             return;
         }
+        const reviewPart = review > 0 ? `, ${review} need review` : '';
         if (failOnTestFailure && failed + blocked > 0) {
-            core.setFailed(`${failed} failed, ${blocked} blocked. See dashboard: ${runUrl}`);
+            core.setFailed(`${failed} failed, ${blocked} blocked${reviewPart}. See dashboard: ${runUrl}`);
             return;
         }
-        logger_1.logger.info(`Run passed — ${passed} passed, ${failed} failed, ${blocked} blocked.`);
+        if (failOnNeedsReview && review > 0) {
+            core.setFailed(`${review} ${review === 1 ? 'test needs' : 'tests need'} review ` +
+                `(fail-on-needs-review is on). See dashboard: ${runUrl}`);
+            return;
+        }
+        logger_1.logger.info(`Run passed — ${passed} passed, ${failed} failed, ${blocked} blocked${reviewPart}.`);
     }
     catch (err) {
         if (err instanceof errors_1.MobileBoostError) {
@@ -29108,6 +29135,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.TERMINAL_STATUSES = void 0;
 exports.isTerminal = isTerminal;
 exports.isCancelled = isCancelled;
+exports.needsReview = needsReview;
 exports.isPassing = isPassing;
 exports.pollRun = pollRun;
 const errors_1 = __nccwpck_require__(7268);
@@ -29134,11 +29162,19 @@ function isTerminal(status) {
 function isCancelled(run) {
     return run.status.toLowerCase() === 'cancelled';
 }
-/** A completed run passes iff nothing failed or was blocked. */
-function isPassing(run) {
+/** The tests that need a person's review; none when the backend omits them. */
+function needsReview(run) {
+    return run.needsReviewTests ?? [];
+}
+/**
+ * A completed run passes iff nothing failed or was blocked, and, when asked
+ * for, nothing needs review.
+ */
+function isPassing(run, options = {}) {
     return (!isCancelled(run) &&
         run.failedTests.length === 0 &&
-        run.blockedTests.length === 0);
+        run.blockedTests.length === 0 &&
+        !(options.failOnNeedsReview && needsReview(run).length > 0));
 }
 /** Polls until the run reaches a terminal status, or throws on timeout. */
 async function pollRun(client, runId, options) {
@@ -29190,10 +29226,12 @@ function logProgress(s) {
     const passed = s.succeededTests.length;
     const failed = s.failedTests.length;
     const blocked = s.blockedTests.length;
-    const done = passed + failed + blocked;
+    const review = needsReview(s).length;
+    const done = passed + failed + blocked + review;
     const total = s.totalTests || done;
+    const reviewPart = review > 0 ? `, ${review} need review` : '';
     logger_1.logger.info(`Run ${s.runId}: ${s.status} — ${done}/${total} tests done ` +
-        `(${passed} passed, ${failed} failed, ${blocked} blocked)`);
+        `(${passed} passed, ${failed} failed, ${blocked} blocked${reviewPart})`);
 }
 function jitter(ms) {
     const delta = ms * 0.2; // ±20%
@@ -29309,10 +29347,14 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.NEEDS_REVIEW_ANNOTATION_TITLE = void 0;
 exports.buildRunUrl = buildRunUrl;
+exports.needsReviewAnnotation = needsReviewAnnotation;
+exports.needsReviewNote = needsReviewNote;
 exports.writeRunSummary = writeRunSummary;
 exports.buildAggregate = buildAggregate;
 exports.buildSkippedRows = buildSkippedRows;
+exports.buildRows = buildRows;
 const core = __importStar(__nccwpck_require__(7484));
 const format_1 = __nccwpck_require__(432);
 const skipped_1 = __nccwpck_require__(3985);
@@ -29330,6 +29372,33 @@ function buildRunUrl(runId, backend = 'qa-studio') {
         ? `${PLATFORM_BASE_URL}/reports/${runId}`
         : `${APP_BASE_URL}/gpt-driver/reports/${runId}`;
 }
+/** Title of the warning annotation raised for each test that needs review. */
+exports.NEEDS_REVIEW_ANNOTATION_TITLE = 'MobileBoost: needs review';
+/**
+ * The warning annotation for one test that needs review: what it is, why it
+ * is neither a pass nor a failure, and where to decide.
+ */
+function needsReviewAnnotation(test) {
+    const name = test.title || test.id || '(untitled)';
+    const where = test.recording ? ` Review it: ${test.recording}` : '';
+    return (`"${name}" needs review: the agent could not tell a broken test from an ` +
+        `intended change in the app, so a person has to decide.${where}`);
+}
+/**
+ * The line under the tally when tests need review, saying whether they
+ * affect the result. Empty when none do.
+ */
+function needsReviewNote(run, failOnNeedsReview = false) {
+    const count = (run.needsReviewTests ?? []).length;
+    if (count === 0)
+        return '';
+    const subject = count === 1 ? '1 test needs' : `${count} tests need`;
+    const effect = failOnNeedsReview
+        ? 'They fail the job because `fail-on-needs-review` is on.'
+        : 'They do not fail the job; set `fail-on-needs-review: true` to change that.';
+    return (`> **${subject} review.** The agent could not tell a broken test from an ` +
+        `intended change in the app. ${effect}`);
+}
 async function writeRunSummary(run, opts) {
     let summary = core.summary
         .addHeading('MobileBoost — Test Run', 2)
@@ -29337,6 +29406,10 @@ async function writeRunSummary(run, opts) {
         .addEOL();
     if (opts.cancelled) {
         summary = summary.addRaw('> **Run was cancelled.**', true).addEOL();
+    }
+    const reviewNote = needsReviewNote(run, opts.failOnNeedsReview);
+    if (reviewNote) {
+        summary = summary.addRaw(reviewNote, true).addEOL();
     }
     summary = summary
         .addRaw(`**Duration:** ${(0, format_1.formatDuration)(opts.durationMs)}`, true)
@@ -29359,8 +29432,9 @@ async function writeRunSummary(run, opts) {
 const NOT_SCHEDULED_NOTE = 'These tests matched the selection but are not automated for this ' +
     'platform yet, so the run left them out. They do not affect the result.';
 /**
- * The one-line tally. "Not scheduled" only appears when something was left
- * out, so a summary for a run without skipped tests reads as it always has.
+ * The one-line tally. "Need review" and "Not scheduled" only appear when
+ * there is something to count, so a summary for a run with neither reads as
+ * it always has.
  */
 function buildAggregate(run) {
     const sep = '&nbsp;&nbsp;&nbsp;';
@@ -29369,6 +29443,10 @@ function buildAggregate(run) {
         `❌ ${run.failedTests.length} failed`,
         `⚠️ ${run.blockedTests.length} blocked`,
     ];
+    const review = (run.needsReviewTests ?? []).length;
+    if (review > 0) {
+        parts.push(`⚠️ ${review} need review`);
+    }
     if (run.skippedTests.length > 0) {
         parts.push(`⏭️ ${run.skippedTests.length} not scheduled`);
     }
@@ -29394,7 +29472,10 @@ function buildSkippedRows(skipped) {
         }),
     ];
 }
-/** Failed and blocked tests are listed first so they're seen immediately. */
+/**
+ * Failed and blocked tests are listed first so they're seen immediately, then
+ * the ones that need review, then the passes.
+ */
 function buildRows(run) {
     const header = [
         { data: 'Status', header: true },
@@ -29405,6 +29486,8 @@ function buildRows(run) {
     for (const t of run.failedTests)
         rows.push(row('❌', t));
     for (const t of run.blockedTests)
+        rows.push(row('⚠️', t));
+    for (const t of run.needsReviewTests ?? [])
         rows.push(row('⚠️', t));
     for (const t of run.succeededTests)
         rows.push(row('✅', t));

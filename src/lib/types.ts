@@ -97,6 +97,15 @@ export interface RunStatus {
   succeededTests: TestResult[];
   failedTests: TestResult[];
   blockedTests: TestResult[];
+  /**
+   * Tests the healing agent could not judge: it could not tell a broken test
+   * from an intended change in the app, so a person has to decide. Neither a
+   * pass nor a failure, and they do not fail the job unless
+   * `fail-on-needs-review` is set. Platform runs only; QA Studio suites and
+   * backends that predate the status omit it, which reads as none (see
+   * `needsReview` in run-tests/poll.ts).
+   */
+  needsReviewTests?: TestResult[];
   /** See `SkippedTest`. Empty for QA Studio suites and older backends. */
   skippedTests: SkippedTest[];
 }

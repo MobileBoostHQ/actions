@@ -113,6 +113,7 @@ Triggers a test run against an uploaded build and, with `async: false`, waits fo
 | `async`                    | no       | `true`                       | If `true` (the default), return immediately after triggering. Set `false` to poll until completion.                               |
 | `timeout-minutes`          | no       | `180`                        | Max time to wait in sync mode.                                                                                                    |
 | `fail-on-test-failure`     | no       | `true`                       | Fail the action when any test fails or is blocked.                                                                                |
+| `fail-on-needs-review`     | no       | `false`                      | Also fail the action when any test needs review. See [Tests that need review](#behavior).                                         |
 | `api-url`                  | no       | `https://api.mobileboost.io` | Override the API base URL.                                                                                                        |
 
 \* At least one of `test-ids`, `tags`, or `tags-query` is required.
@@ -159,6 +160,7 @@ test the agent auto-healed.
 | `passed`        | Number of passed tests (sync mode only).                                                            |
 | `failed`        | Number of failed tests (sync mode only).                                                            |
 | `blocked`       | Number of blocked tests (sync mode only).                                                           |
+| `needs-review`  | Number of tests that need review (sync mode only).                                                  |
 | `not-scheduled` | Number of matched tests the run left out because they are not automated yet. Set in async mode too. |
 
 ### Behavior
@@ -172,6 +174,14 @@ test the agent auto-healed.
   `passed`/`failed`/`blocked` outputs, and fails the job when
   `fail-on-test-failure` is `true` and anything failed or was blocked. A
   `cancelled` run always fails the job.
+- **Tests that need review (Platform organisations):** when a test fails and
+  the AI agent cannot tell whether the test is broken or the app changed on
+  purpose, it leaves the verdict to a person and the test ends as _needs
+  review_ instead of failed. In sync mode the action raises a warning
+  annotation for each such test, with a link to its report, adds a line to
+  the job summary, and sets the `needs-review` output. These tests do not fail
+  the job unless you set `fail-on-needs-review: true`. They are not counted as
+  passed, failed or blocked. Backends that predate the status report none.
 - **Tests that are not automated yet (Platform organisations):** when `tags`
   match a test that has no automation for the run's platform yet (never
   generated, still generating, or generation failed), the run goes ahead with
@@ -411,6 +421,7 @@ Best for **validating a build before it lands** on the default branch.
 | `Unsupported build file`                  | Only `.apk`, `.ipa`, `.zip` and `.tar.gz` are accepted.                                              |
 | Run `did not finish within the timeout`   | Increase `timeout-minutes`, or use `async: true`. The run keeps going on MobileBoost.                |
 | Job fails with `N failed, M blocked`      | Tests failed/were blocked. Open the linked dashboard run to inspect recordings.                      |
+| Job fails with `N tests need review`      | `fail-on-needs-review` is on and the agent left a verdict to a person. Decide it in the report.      |
 
 Enable verbose logs by setting the repo secret/variable `ACTIONS_STEP_DEBUG` to
 `true`.

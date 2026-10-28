@@ -104,6 +104,14 @@ inputs:
     description: 'If true (default), fail the action when any test fails or is blocked.'
     required: false
     default: 'true'
+  fail-on-needs-review:
+    description: |
+      If true, also fail the action when any test needs review: the AI agent
+      could not tell a broken test from an intended change in the app and left
+      the verdict to a person. Default false: each such test gets a warning
+      annotation instead. Sync mode only.
+    required: false
+    default: 'false'
   api-url:
     description: 'Override the MobileBoost API base URL.'
     required: false
@@ -117,6 +125,8 @@ outputs:
     description: 'Number of failed tests (sync mode only).'
   blocked:
     description: 'Number of blocked tests (sync mode only).'
+  needs-review:
+    description: 'Number of tests that need review (sync mode only). They fail the job only with fail-on-needs-review.'
   not-scheduled:
     description: 'Number of matched tests the run left out because they are not automated for its platform yet. Set in async mode too. They never fail the job.'
 runs:

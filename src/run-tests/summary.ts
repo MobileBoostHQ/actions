@@ -29,6 +29,44 @@ export interface RunSummaryOptions {
   durationMs: number;
   runUrl: string;
   cancelled: boolean;
+  /** Whether a test that needs review fails the job (`fail-on-needs-review`). */
+  failOnNeedsReview?: boolean;
+}
+
+/** Title of the warning annotation raised for each test that needs review. */
+export const NEEDS_REVIEW_ANNOTATION_TITLE = 'MobileBoost: needs review';
+
+/**
+ * The warning annotation for one test that needs review: what it is, why it
+ * is neither a pass nor a failure, and where to decide.
+ */
+export function needsReviewAnnotation(test: TestResult): string {
+  const name = test.title || test.id || '(untitled)';
+  const where = test.recording ? ` Review it: ${test.recording}` : '';
+  return (
+    `"${name}" needs review: the agent could not tell a broken test from an ` +
+    `intended change in the app, so a person has to decide.${where}`
+  );
+}
+
+/**
+ * The line under the tally when tests need review, saying whether they
+ * affect the result. Empty when none do.
+ */
+export function needsReviewNote(
+  run: Pick<RunStatus, 'needsReviewTests'>,
+  failOnNeedsReview = false,
+): string {
+  const count = (run.needsReviewTests ?? []).length;
+  if (count === 0) return '';
+  const subject = count === 1 ? '1 test needs' : `${count} tests need`;
+  const effect = failOnNeedsReview
+    ? 'They fail the job because `fail-on-needs-review` is on.'
+    : 'They do not fail the job; set `fail-on-needs-review: true` to change that.';
+  return (
+    `> **${subject} review.** The agent could not tell a broken test from an ` +
+    `intended change in the app. ${effect}`
+  );
 }
 
 export async function writeRunSummary(
@@ -42,6 +80,11 @@ export async function writeRunSummary(
 
   if (opts.cancelled) {
     summary = summary.addRaw('> **Run was cancelled.**', true).addEOL();
+  }
+
+  const reviewNote = needsReviewNote(run, opts.failOnNeedsReview);
+  if (reviewNote) {
+    summary = summary.addRaw(reviewNote, true).addEOL();
   }
 
   summary = summary
@@ -71,13 +114,18 @@ const NOT_SCHEDULED_NOTE =
   'platform yet, so the run left them out. They do not affect the result.';
 
 /**
- * The one-line tally. "Not scheduled" only appears when something was left
- * out, so a summary for a run without skipped tests reads as it always has.
+ * The one-line tally. "Need review" and "Not scheduled" only appear when
+ * there is something to count, so a summary for a run with neither reads as
+ * it always has.
  */
 export function buildAggregate(
   run: Pick<
     RunStatus,
-    'succeededTests' | 'failedTests' | 'blockedTests' | 'skippedTests'
+    | 'succeededTests'
+    | 'failedTests'
+    | 'blockedTests'
+    | 'skippedTests'
+    | 'needsReviewTests'
   >,
 ): string {
   const sep = '&nbsp;&nbsp;&nbsp;';
@@ -86,6 +134,10 @@ export function buildAggregate(
     `❌ ${run.failedTests.length} failed`,
     `⚠️ ${run.blockedTests.length} blocked`,
   ];
+  const review = (run.needsReviewTests ?? []).length;
+  if (review > 0) {
+    parts.push(`⚠️ ${review} need review`);
+  }
   if (run.skippedTests.length > 0) {
     parts.push(`⏭️ ${run.skippedTests.length} not scheduled`);
   }
@@ -113,8 +165,11 @@ export function buildSkippedRows(skipped: SkippedTest[]): SummaryTableRow[] {
   ];
 }
 
-/** Failed and blocked tests are listed first so they're seen immediately. */
-function buildRows(run: RunStatus): SummaryTableRow[] {
+/**
+ * Failed and blocked tests are listed first so they're seen immediately, then
+ * the ones that need review, then the passes.
+ */
+export function buildRows(run: RunStatus): SummaryTableRow[] {
   const header: SummaryTableRow = [
     { data: 'Status', header: true },
     { data: 'Test', header: true },
@@ -124,6 +179,7 @@ function buildRows(run: RunStatus): SummaryTableRow[] {
   const rows: SummaryTableRow[] = [header];
   for (const t of run.failedTests) rows.push(row('❌', t));
   for (const t of run.blockedTests) rows.push(row('⚠️', t));
+  for (const t of run.needsReviewTests ?? []) rows.push(row('⚠️', t));
   for (const t of run.succeededTests) rows.push(row('✅', t));
   return rows;
 }

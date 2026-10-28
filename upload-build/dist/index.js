@@ -91838,6 +91838,8 @@ function createClient(apiKey, baseUrl) {
             succeededTests: normalizeTests(json['succeededTests']),
             failedTests: normalizeTests(json['failedTests']),
             blockedTests: normalizeTests(json['blockedTests']),
+            // Absent on QA Studio suites and on backends older than the status.
+            needsReviewTests: normalizeTests(json['needsReviewTests']),
             skippedTests: normalizeSkippedTests(json['skippedTests']),
         };
     };

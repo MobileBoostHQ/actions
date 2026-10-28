@@ -1,7 +1,11 @@
+import { RunStatus } from '../../src/lib/types';
 import {
   buildAggregate,
+  buildRows,
   buildRunUrl,
   buildSkippedRows,
+  needsReviewAnnotation,
+  needsReviewNote,
 } from '../../src/run-tests/summary';
 
 describe('buildRunUrl', () => {
@@ -87,5 +91,85 @@ describe('buildSkippedRows', () => {
       'Automation being generated: Automation for android is being generated.',
     ]);
     expect(rows[2]).toEqual(['t2', '-', 'Not automated yet']);
+  });
+});
+
+describe('needs review', () => {
+  const review = {
+    id: 'e3',
+    title: 'Checkout with a promo code',
+    status: 'needs_review',
+    recording: 'https://platform.mobileboost.io/reports/r1/e3',
+  };
+  const run: RunStatus = {
+    runId: 'r1',
+    status: 'completed',
+    totalTests: 2,
+    succeededTests: [
+      { id: 'e1', title: 'Log in', status: 'succeeded', recording: '' },
+    ],
+    failedTests: [],
+    blockedTests: [],
+    needsReviewTests: [review],
+    skippedTests: [],
+  };
+
+  it('is counted in the tally only when there is one', () => {
+    expect(buildAggregate(run)).toBe(
+      '✅ 1 passed&nbsp;&nbsp;&nbsp;❌ 0 failed&nbsp;&nbsp;&nbsp;' +
+        '⚠️ 0 blocked&nbsp;&nbsp;&nbsp;⚠️ 1 need review',
+    );
+    expect(buildAggregate({ ...run, needsReviewTests: [] })).not.toMatch(
+      /need review/,
+    );
+    expect(buildAggregate({ ...run, needsReviewTests: undefined })).not.toMatch(
+      /need review/,
+    );
+  });
+
+  it('lists them after failures and before passes', () => {
+    const rows = buildRows({
+      ...run,
+      failedTests: [
+        { id: 'e2', title: 'Pay', status: 'failed', recording: '' },
+      ],
+    });
+    expect(rows.slice(1).map((r) => r[1])).toEqual([
+      'Pay',
+      'Checkout with a promo code',
+      'Log in',
+    ]);
+    expect(rows[2]?.[0]).toBe('⚠️');
+  });
+
+  it('annotates each one with its report link', () => {
+    expect(needsReviewAnnotation(review)).toBe(
+      '"Checkout with a promo code" needs review: the agent could not tell ' +
+        'a broken test from an intended change in the app, so a person has ' +
+        'to decide. Review it: https://platform.mobileboost.io/reports/r1/e3',
+    );
+    expect(needsReviewAnnotation({ ...review, title: '', recording: '' })).toBe(
+      '"e3" needs review: the agent could not tell a broken test from an ' +
+        'intended change in the app, so a person has to decide.',
+    );
+  });
+
+  it('says in the summary whether they fail the job', () => {
+    expect(needsReviewNote(run)).toMatch(/^> \*\*1 test needs review\.\*\*/);
+    expect(needsReviewNote(run)).toMatch(/do not fail the job/);
+    expect(needsReviewNote(run, true)).toMatch(
+      /fail the job because `fail-on-needs-review` is on/,
+    );
+    expect(
+      needsReviewNote({ needsReviewTests: [review, { ...review, id: 'e4' }] }),
+    ).toMatch(/2 tests need review/);
+    expect(needsReviewNote({ needsReviewTests: [] })).toBe('');
+    expect(needsReviewNote({})).toBe('');
+  });
+
+  it('uses no em dashes in the new copy', () => {
+    expect(needsReviewAnnotation(review)).not.toContain('\u2014');
+    expect(needsReviewNote(run)).not.toContain('\u2014');
+    expect(needsReviewNote(run, true)).not.toContain('\u2014');
   });
 });

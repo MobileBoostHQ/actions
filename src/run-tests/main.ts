@@ -11,10 +11,16 @@ import {
   parseJsonObject,
 } from '../lib/validate';
 import { parseMode } from './mode';
-import { isCancelled } from './poll';
+import { isCancelled, needsReview } from './poll';
 import { pollRun } from './poll';
 import { triggerAutotestRun, triggerRun } from './trigger';
-import { buildRunUrl, buildSkippedRows, writeRunSummary } from './summary';
+import {
+  buildRunUrl,
+  buildSkippedRows,
+  needsReviewAnnotation,
+  NEEDS_REVIEW_ANNOTATION_TITLE,
+  writeRunSummary,
+} from './summary';
 import { resolveSkipped } from './skipped';
 import { parseAppTarget } from './target';
 
@@ -87,6 +93,13 @@ async function run(): Promise<void> {
     const failOnTestFailure = parseBoolean(
       'fail-on-test-failure',
       core.getInput('fail-on-test-failure') || 'true',
+    );
+    // A test that needs review is a question for a person (the healing agent
+    // could not tell a broken test from an intended app change), so by
+    // default it warns rather than failing the job.
+    const failOnNeedsReview = parseBoolean(
+      'fail-on-needs-review',
+      core.getInput('fail-on-needs-review') || 'false',
     );
 
     // The autotest endpoint takes none of these. Say so rather than dropping
@@ -185,25 +198,49 @@ async function run(): Promise<void> {
     const passed = final.succeededTests.length;
     const failed = final.failedTests.length;
     const blocked = final.blockedTests.length;
+    const reviewTests = needsReview(final);
+    const review = reviewTests.length;
     core.setOutput('passed', String(passed));
     core.setOutput('failed', String(failed));
     core.setOutput('blocked', String(blocked));
+    core.setOutput('needs-review', String(review));
+
+    // One annotation per test, so each shows on the workflow run page with a
+    // link to its report, whether or not it fails the job.
+    for (const test of reviewTests) {
+      core.warning(needsReviewAnnotation(test), {
+        title: NEEDS_REVIEW_ANNOTATION_TITLE,
+      });
+    }
 
     const cancelled = isCancelled(final);
-    await writeRunSummary(final, { durationMs, runUrl, cancelled });
+    await writeRunSummary(final, {
+      durationMs,
+      runUrl,
+      cancelled,
+      failOnNeedsReview,
+    });
 
     if (cancelled) {
       core.setFailed(`Run was cancelled. See ${runUrl}`);
       return;
     }
+    const reviewPart = review > 0 ? `, ${review} need review` : '';
     if (failOnTestFailure && failed + blocked > 0) {
       core.setFailed(
-        `${failed} failed, ${blocked} blocked. See dashboard: ${runUrl}`,
+        `${failed} failed, ${blocked} blocked${reviewPart}. See dashboard: ${runUrl}`,
+      );
+      return;
+    }
+    if (failOnNeedsReview && review > 0) {
+      core.setFailed(
+        `${review} ${review === 1 ? 'test needs' : 'tests need'} review ` +
+          `(fail-on-needs-review is on). See dashboard: ${runUrl}`,
       );
       return;
     }
     logger.info(
-      `Run passed — ${passed} passed, ${failed} failed, ${blocked} blocked.`,
+      `Run passed — ${passed} passed, ${failed} failed, ${blocked} blocked${reviewPart}.`,
     );
   } catch (err) {
     if (err instanceof MobileBoostError) {

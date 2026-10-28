@@ -573,4 +573,42 @@ describe('getAutotestRunStatus', () => {
     expect(res.failedTests[0]?.id).toBe('e2');
     expect(res.blockedTests).toEqual([]);
   });
+
+  it('maps the tests that need review', async () => {
+    nock(BASE)
+      .get('/autotest/runs/ar2')
+      .reply(200, {
+        runId: 'ar2',
+        status: 'completed',
+        totalTests: 1,
+        needsReviewTests: [
+          {
+            id: 'e3',
+            title: 'test_promo.py',
+            status: 'needs_review',
+            recording: 'http://r/e3',
+          },
+        ],
+      });
+
+    const res = await createClient(KEY, BASE).getAutotestRunStatus('ar2');
+    expect(res.needsReviewTests).toEqual([
+      {
+        id: 'e3',
+        title: 'test_promo.py',
+        status: 'needs_review',
+        recording: 'http://r/e3',
+      },
+    ]);
+    expect(res.failedTests).toEqual([]);
+  });
+
+  it('reads a backend without the field as no test needing review', async () => {
+    nock(BASE)
+      .get('/autotest/runs/ar3')
+      .reply(200, { runId: 'ar3', status: 'completed', failedTests: [] });
+
+    const res = await createClient(KEY, BASE).getAutotestRunStatus('ar3');
+    expect(res.needsReviewTests).toEqual([]);
+  });
 });

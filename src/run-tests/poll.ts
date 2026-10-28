@@ -1,7 +1,7 @@
 import { MobileBoostClient } from '../lib/client';
 import { ApiError, TimeoutError } from '../lib/errors';
 import { logger } from '../lib/logger';
-import { RunStatus } from '../lib/types';
+import { RunStatus, TestResult } from '../lib/types';
 
 // A suite reaches exactly one of these and then never changes. `cancelled`
 // matters: a cancelled suite never becomes `completed`, so without it here a
@@ -30,12 +30,33 @@ export function isCancelled(run: RunStatus): boolean {
   return run.status.toLowerCase() === 'cancelled';
 }
 
-/** A completed run passes iff nothing failed or was blocked. */
-export function isPassing(run: RunStatus): boolean {
+/** The tests that need a person's review; none when the backend omits them. */
+export function needsReview(run: RunStatus): TestResult[] {
+  return run.needsReviewTests ?? [];
+}
+
+export interface PassingOptions {
+  /**
+   * Whether a test that needs review fails the run. Off by default: the
+   * healing agent could not tell a broken test from an intended app change,
+   * which is a question for a person, not a red build.
+   */
+  failOnNeedsReview?: boolean;
+}
+
+/**
+ * A completed run passes iff nothing failed or was blocked, and, when asked
+ * for, nothing needs review.
+ */
+export function isPassing(
+  run: RunStatus,
+  options: PassingOptions = {},
+): boolean {
   return (
     !isCancelled(run) &&
     run.failedTests.length === 0 &&
-    run.blockedTests.length === 0
+    run.blockedTests.length === 0 &&
+    !(options.failOnNeedsReview && needsReview(run).length > 0)
   );
 }
 
@@ -117,11 +138,13 @@ function logProgress(s: RunStatus): void {
   const passed = s.succeededTests.length;
   const failed = s.failedTests.length;
   const blocked = s.blockedTests.length;
-  const done = passed + failed + blocked;
+  const review = needsReview(s).length;
+  const done = passed + failed + blocked + review;
   const total = s.totalTests || done;
+  const reviewPart = review > 0 ? `, ${review} need review` : '';
   logger.info(
     `Run ${s.runId}: ${s.status} — ${done}/${total} tests done ` +
-      `(${passed} passed, ${failed} failed, ${blocked} blocked)`,
+      `(${passed} passed, ${failed} failed, ${blocked} blocked${reviewPart})`,
   );
 }
 
