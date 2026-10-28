@@ -29028,7 +29028,7 @@ async function run() {
             core.setFailed(`Run was cancelled. See ${runUrl}`);
             return;
         }
-        const reviewPart = review > 0 ? `, ${review} need review` : '';
+        const reviewPart = review > 0 ? `, ${(0, poll_1.reviewCount)(review)}` : '';
         if (failOnTestFailure && failed + blocked > 0) {
             core.setFailed(`${failed} failed, ${blocked} blocked${reviewPart}. See dashboard: ${runUrl}`);
             return;
@@ -29136,6 +29136,7 @@ exports.TERMINAL_STATUSES = void 0;
 exports.isTerminal = isTerminal;
 exports.isCancelled = isCancelled;
 exports.needsReview = needsReview;
+exports.reviewCount = reviewCount;
 exports.isPassing = isPassing;
 exports.pollRun = pollRun;
 const errors_1 = __nccwpck_require__(7268);
@@ -29165,6 +29166,10 @@ function isCancelled(run) {
 /** The tests that need a person's review; none when the backend omits them. */
 function needsReview(run) {
     return run.needsReviewTests ?? [];
+}
+/** "1 needs review", "2 need review": the count reads as a sentence. */
+function reviewCount(count) {
+    return `${count} ${count === 1 ? 'needs' : 'need'} review`;
 }
 /**
  * A completed run passes iff nothing failed or was blocked, and, when asked
@@ -29229,7 +29234,7 @@ function logProgress(s) {
     const review = needsReview(s).length;
     const done = passed + failed + blocked + review;
     const total = s.totalTests || done;
-    const reviewPart = review > 0 ? `, ${review} need review` : '';
+    const reviewPart = review > 0 ? `, ${reviewCount(review)}` : '';
     logger_1.logger.info(`Run ${s.runId}: ${s.status} — ${done}/${total} tests done ` +
         `(${passed} passed, ${failed} failed, ${blocked} blocked${reviewPart})`);
 }
@@ -29357,6 +29362,7 @@ exports.buildSkippedRows = buildSkippedRows;
 exports.buildRows = buildRows;
 const core = __importStar(__nccwpck_require__(7484));
 const format_1 = __nccwpck_require__(432);
+const poll_1 = __nccwpck_require__(9384);
 const skipped_1 = __nccwpck_require__(3985);
 const APP_BASE_URL = 'https://app.mobileboost.io';
 // Autotest runs are reported in the newer platform app, not the gpt-driver
@@ -29445,7 +29451,7 @@ function buildAggregate(run) {
     ];
     const review = (run.needsReviewTests ?? []).length;
     if (review > 0) {
-        parts.push(`⚠️ ${review} need review`);
+        parts.push(`⚠️ ${(0, poll_1.reviewCount)(review)}`);
     }
     if (run.skippedTests.length > 0) {
         parts.push(`⏭️ ${run.skippedTests.length} not scheduled`);

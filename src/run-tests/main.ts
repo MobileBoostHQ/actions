@@ -11,7 +11,7 @@ import {
   parseJsonObject,
 } from '../lib/validate';
 import { parseMode } from './mode';
-import { isCancelled, needsReview } from './poll';
+import { isCancelled, needsReview, reviewCount } from './poll';
 import { pollRun } from './poll';
 import { triggerAutotestRun, triggerRun } from './trigger';
 import {
@@ -225,7 +225,7 @@ async function run(): Promise<void> {
       core.setFailed(`Run was cancelled. See ${runUrl}`);
       return;
     }
-    const reviewPart = review > 0 ? `, ${review} need review` : '';
+    const reviewPart = review > 0 ? `, ${reviewCount(review)}` : '';
     if (failOnTestFailure && failed + blocked > 0) {
       core.setFailed(
         `${failed} failed, ${blocked} blocked${reviewPart}. See dashboard: ${runUrl}`,

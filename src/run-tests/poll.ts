@@ -35,6 +35,11 @@ export function needsReview(run: RunStatus): TestResult[] {
   return run.needsReviewTests ?? [];
 }
 
+/** "1 needs review", "2 need review": the count reads as a sentence. */
+export function reviewCount(count: number): string {
+  return `${count} ${count === 1 ? 'needs' : 'need'} review`;
+}
+
 export interface PassingOptions {
   /**
    * Whether a test that needs review fails the run. Off by default: the
@@ -141,7 +146,7 @@ function logProgress(s: RunStatus): void {
   const review = needsReview(s).length;
   const done = passed + failed + blocked + review;
   const total = s.totalTests || done;
-  const reviewPart = review > 0 ? `, ${review} need review` : '';
+  const reviewPart = review > 0 ? `, ${reviewCount(review)}` : '';
   logger.info(
     `Run ${s.runId}: ${s.status} — ${done}/${total} tests done ` +
       `(${passed} passed, ${failed} failed, ${blocked} blocked${reviewPart})`,

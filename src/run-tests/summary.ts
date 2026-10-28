@@ -2,6 +2,7 @@ import * as core from '@actions/core';
 import { SummaryTableRow } from '@actions/core/lib/summary';
 import { formatDuration } from '../lib/format';
 import { RunBackend, RunStatus, SkippedTest, TestResult } from '../lib/types';
+import { reviewCount } from './poll';
 import { reasonLabel } from './skipped';
 
 const APP_BASE_URL = 'https://app.mobileboost.io';
@@ -136,7 +137,7 @@ export function buildAggregate(
   ];
   const review = (run.needsReviewTests ?? []).length;
   if (review > 0) {
-    parts.push(`⚠️ ${review} need review`);
+    parts.push(`⚠️ ${reviewCount(review)}`);
   }
   if (run.skippedTests.length > 0) {
     parts.push(`⏭️ ${run.skippedTests.length} not scheduled`);

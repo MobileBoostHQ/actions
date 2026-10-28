@@ -6,6 +6,7 @@ import {
   isPassing,
   isTerminal,
   needsReview,
+  reviewCount,
   pollRun,
 } from '../../src/run-tests/poll';
 
@@ -77,6 +78,11 @@ describe('needs review', () => {
       needsReviewTests: [test('r')],
     });
     expect(needsReview(review).map((t) => t.id)).toEqual(['r']);
+  });
+
+  it('reviewCount reads as a sentence', () => {
+    expect(reviewCount(1)).toBe('1 needs review');
+    expect(reviewCount(2)).toBe('2 need review');
   });
 
   it('isPassing ignores tests that need review by default', () => {

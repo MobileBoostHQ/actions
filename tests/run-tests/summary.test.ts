@@ -117,7 +117,7 @@ describe('needs review', () => {
   it('is counted in the tally only when there is one', () => {
     expect(buildAggregate(run)).toBe(
       '✅ 1 passed&nbsp;&nbsp;&nbsp;❌ 0 failed&nbsp;&nbsp;&nbsp;' +
-        '⚠️ 0 blocked&nbsp;&nbsp;&nbsp;⚠️ 1 need review',
+        '⚠️ 0 blocked&nbsp;&nbsp;&nbsp;⚠️ 1 needs review',
     );
     expect(buildAggregate({ ...run, needsReviewTests: [] })).not.toMatch(
       /need review/,
